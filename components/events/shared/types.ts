@@ -41,6 +41,7 @@ export interface TicketTier {
 
 /** Pre-defined ticket-type labels users can pick. */
 export const PRESET_TICKET_TYPES = [
+  "All",
   "Early Bird",
   "Members",
   "Non-Members",

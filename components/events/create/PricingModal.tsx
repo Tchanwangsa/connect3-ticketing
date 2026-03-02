@@ -136,7 +136,7 @@ export function PricingModal({
               <Info className="h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
               <p className="flex-1 text-xs text-yellow-800 dark:text-yellow-300">
                 Remember to configure your ticketing details (capacity, sales
-                dates, etc.) before publishing.
+                dates, etc.) after creating this event.
               </p>
               <button
                 type="button"
