@@ -12,8 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
-import { Ticket, LogOut, User } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import Link from "next/link";
+import LogoAnimated from "../logo/LogoAnimated";
 
 export function Navbar() {
   const { user, profile, loading } = useAuthStore();
@@ -33,10 +34,10 @@ export function Navbar() {
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
         <Link
           href="/"
-          className="flex items-center gap-2 font-bold tracking-tight"
+          className="flex items-center justify-center gap-2 font-bold tracking-tight text-lg"
         >
-          <Ticket className="h-5 w-5" />
-          <span>Connect3 Ticketing</span>
+          <LogoAnimated className="h-5 w-5" onHover={true} />
+          <span className="mb-1">Ticketing</span>
         </Link>
 
         <div className="flex items-center gap-3">

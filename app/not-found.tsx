@@ -1,7 +1,18 @@
+"use client";
+
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
+import { useNotFound } from "@/components/providers/NotFoundProvider";
 
 export default function NotFound() {
+  const { setIsNotFound } = useNotFound();
+
+  useEffect(() => {
+    setIsNotFound(true);
+    return () => setIsNotFound(false);
+  }, [setIsNotFound]);
+
   return (
     <div className="h-dvh flex flex-col items-center justify-center bg-black ">
       <h1 className="text-4xl font-bold text-white mb-2">Page Not Found</h1>
