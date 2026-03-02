@@ -9,14 +9,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { PlusCircle, Search, Loader2, X } from "lucide-react";
+import { HostAvatarStack } from "../shared/HostAvatarStack";
+import type { ClubProfile } from "../shared/types";
 
-export interface ClubProfile {
-  id: string;
-  first_name: string;
-  avatar_url: string | null;
-}
+const PAGE_SIZE = 20;
 
-interface EventHostsPickerProps {
+interface HostsPickerProps {
   /** The creator's own profile — always displayed, cannot be removed */
   creatorProfile: ClubProfile;
   /** Currently selected additional host IDs (NOT including the creator) */
@@ -27,14 +25,12 @@ interface EventHostsPickerProps {
   onChange: (ids: string[], data: ClubProfile[]) => void;
 }
 
-const PAGE_SIZE = 20;
-
-export function EventHostsPicker({
+export function HostsPicker({
   creatorProfile,
   selectedHosts,
   selectedHostsData,
   onChange,
-}: EventHostsPickerProps) {
+}: HostsPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -94,7 +90,6 @@ export function EventHostsPicker({
     [],
   );
 
-  // Fetch clubs when popover is open and search/page changes
   useEffect(() => {
     if (open) {
       fetchClubs(page, debouncedSearch);
@@ -110,7 +105,6 @@ export function EventHostsPicker({
   };
 
   const toggleClub = (club: ClubProfile) => {
-    // Cannot toggle the creator
     if (club.id === creatorProfile.id) return;
     const isSelected = selectedHosts.includes(club.id);
     if (isSelected) {
@@ -127,7 +121,6 @@ export function EventHostsPicker({
     onChange([], []);
   };
 
-  // Build display label: "CreatorName" or "CreatorName + 2 others"
   const othersCount = selectedHostsData.length;
   const displayLabel =
     othersCount > 0
@@ -137,43 +130,7 @@ export function EventHostsPicker({
   return (
     <div className="flex items-center gap-2">
       {/* Stacked avatars */}
-      <div className="flex items-center -space-x-2">
-        {/* Creator avatar — always visible */}
-        <Avatar className="h-8 w-8 border-2 border-background z-10">
-          {creatorProfile.avatar_url && (
-            <AvatarImage
-              src={creatorProfile.avatar_url}
-              alt={creatorProfile.first_name}
-            />
-          )}
-          <AvatarFallback className="text-xs">
-            {creatorProfile.first_name.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-
-        {/* Additional host avatars (max 2 shown) */}
-        {selectedHostsData.slice(0, 2).map((club, i) => (
-          <Avatar
-            key={club.id}
-            className="h-8 w-8 border-2 border-background"
-            style={{ zIndex: 9 - i }}
-          >
-            {club.avatar_url && (
-              <AvatarImage src={club.avatar_url} alt={club.first_name} />
-            )}
-            <AvatarFallback className="text-xs">
-              {club.first_name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        ))}
-
-        {/* +N badge if more than 2 additional hosts */}
-        {selectedHostsData.length > 2 && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-semibold text-foreground z-0">
-            +{selectedHostsData.length - 2}
-          </div>
-        )}
-      </div>
+      <HostAvatarStack creator={creatorProfile} hosts={selectedHostsData} />
 
       {/* Label */}
       <span className="text-sm font-medium text-foreground">
@@ -221,7 +178,7 @@ export function EventHostsPicker({
             onScroll={handleScroll}
             className="max-h-52 overflow-y-auto py-1"
           >
-            {/* Creator pinned at very top — always checked, not toggleable */}
+            {/* Creator pinned at very top */}
             <div className="flex w-full items-center gap-2 px-3 py-1.5 text-sm opacity-60">
               <div className="flex h-4 w-4 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground">
                 <svg width="10" height="10" viewBox="0 0 10 10">

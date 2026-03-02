@@ -6,7 +6,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, Plus, X } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { TagPill } from "../shared/EventPills";
 
 const AVAILABLE_TAGS = [
   "Free",
@@ -26,12 +27,12 @@ const AVAILABLE_TAGS = [
   "Study",
 ] as const;
 
-interface EventTagsPickerProps {
+interface TagsPickerProps {
   value: string[];
   onChange: (tags: string[]) => void;
 }
 
-export function EventTagsPicker({ value, onChange }: EventTagsPickerProps) {
+export function TagsPicker({ value, onChange }: TagsPickerProps) {
   const [open, setOpen] = useState(false);
 
   const toggleTag = (tag: string) => {
@@ -50,19 +51,7 @@ export function EventTagsPicker({ value, onChange }: EventTagsPickerProps) {
     <div className="flex flex-wrap items-center gap-1.5">
       {/* Selected tag pills */}
       {value.map((tag) => (
-        <span
-          key={tag}
-          className="inline-flex items-center gap-1 rounded-full border border-foreground/20 px-2.5 py-1 text-sm font-medium text-foreground"
-        >
-          {tag}
-          <button
-            type="button"
-            onClick={() => removeTag(tag)}
-            className="ml-0.5 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </span>
+        <TagPill key={tag} tag={tag} onRemove={() => removeTag(tag)} />
       ))}
 
       {/* Add tag button */}

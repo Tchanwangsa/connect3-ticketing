@@ -17,19 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CalendarDays, Globe } from "lucide-react";
-
-export interface DateTimeData {
-  startDate: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endDate: string;
-  endTime: string;
-  timezone: string; // IANA tz
-}
-
-interface EventDatePickerProps {
-  value: DateTimeData;
-  onChange: (data: DateTimeData) => void;
-}
+import type { DateTimeData } from "../shared/types";
 
 const POPULAR_TIMEZONES = [
   "Australia/Sydney",
@@ -82,7 +70,12 @@ function formatDisplayDate(date: string, time: string): string {
   return str;
 }
 
-export function EventDatePicker({ value, onChange }: EventDatePickerProps) {
+interface DatePickerProps {
+  value: DateTimeData;
+  onChange: (data: DateTimeData) => void;
+}
+
+export function DatePicker({ value, onChange }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateTimeData>(value);
   const [tab, setTab] = useState<"start" | "end" | "tz">("start");

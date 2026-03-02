@@ -2,33 +2,49 @@
 
 import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { EventImageUpload } from "@/components/events/EventImageUpload";
+
+/* ── Shared ── */
+import type {
+  DateTimeData,
+  LocationData,
+  ClubProfile,
+  EventFormData,
+} from "./shared/types";
+
+/* ── Create-mode components ── */
+import { ImageUpload } from "./create/ImageUpload";
+import { DatePicker } from "./create/DatePicker";
+import { LocationPicker } from "./create/LocationPicker";
+import { HostsPicker } from "./create/HostsPicker";
+import { CategoryPicker } from "./create/CategoryPicker";
+import { TagsPicker } from "./create/TagsPicker";
+
+/* ── Preview-mode components ── */
 import {
-  EventDatePicker,
-  type DateTimeData,
-} from "@/components/events/EventDatePicker";
-import {
-  EventHostsPicker,
-  type ClubProfile,
-} from "@/components/events/EventHostsPicker";
-import { EventCategoryPicker } from "@/components/events/EventCategoryPicker";
-import { EventTagsPicker } from "@/components/events/EventTagsPicker";
-import {
-  EventLocationPicker,
-  type LocationData,
-} from "@/components/events/EventLocationPicker";
+  ImagePreview,
+  CategoryTagsDisplay,
+  DateDisplay,
+  LocationDisplay,
+  HostsDisplay,
+  DescriptionCard,
+  FAQCard,
+  WhatToBringCard,
+  PanelistsCard,
+  CompaniesCard,
+} from "./preview";
+
+/* ── Other ── */
 import {
   EventChecklist,
   AttentionBadge,
   type ChecklistRefMap,
-} from "@/components/events/EventChecklist";
+} from "./EventChecklist";
 import {
   FAQSectionCard,
   WhatToBringSectionCard,
@@ -40,22 +56,10 @@ import {
   type SectionData,
   type FAQSectionData,
   type DragHandleProps,
-} from "@/components/events/sections";
+} from "./sections";
 import { useAuthStore } from "@/stores/authStore";
-import {
-  ArrowLeft,
-  MapPin,
-  Users,
-  Loader2,
-  Eye,
-  Pencil,
-  CalendarDays,
-  HelpCircle,
-  Backpack,
-  Mic,
-  Building2,
-} from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ArrowLeft, Eye, Loader2, Pencil, Users } from "lucide-react";
+import { toast } from "sonner";
 import {
   DndContext,
   closestCenter,
@@ -73,22 +77,6 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-export interface EventFormData {
-  name: string;
-  description: string;
-  startDate: string;
-  startTime: string;
-  endDate: string;
-  endTime: string;
-  timezone: string;
-  location: LocationData;
-  isOnline: boolean;
-  category: string;
-  tags: string[];
-  hostIds: string[];
-  thumbnailFile: File | null;
-}
 
 interface EventFormProps {
   /** Pre-filled data for edit mode */
@@ -134,170 +122,6 @@ function SortableSectionWrapper({
         attributes,
       })}
     </div>
-  );
-}
-
-/* ── Preview card renderers ── */
-function PreviewFAQ({ data }: { data: SectionData & { type: "faq" } }) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <HelpCircle className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg">FAQ</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {data.items
-          .filter((q) => q.question || q.answer)
-          .map((q, i) => (
-            <div key={i}>
-              <p className="font-medium">{q.question || "Untitled question"}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {q.answer || "No answer yet"}
-              </p>
-            </div>
-          ))}
-        {data.items.every((q) => !q.question && !q.answer) && (
-          <p className="text-sm text-muted-foreground italic">
-            No questions added yet.
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function PreviewWhatToBring({
-  data,
-}: {
-  data: SectionData & { type: "what-to-bring" };
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Backpack className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg">What To Bring</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-2">
-          {data.items
-            .filter((it) => it.item)
-            .map((it, i) => (
-              <li key={i} className="flex items-center gap-2 text-sm">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-                  {i + 1}
-                </span>
-                {it.item}
-              </li>
-            ))}
-        </ul>
-        {data.items.every((it) => !it.item) && (
-          <p className="text-sm text-muted-foreground italic">
-            No items added yet.
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function PreviewPanelists({
-  data,
-}: {
-  data: SectionData & { type: "panelists" };
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Mic className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg">Panelists / Lineup</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {data.items
-            .filter((p) => p.name)
-            .map((p, i) => (
-              <div
-                key={i}
-                className="flex flex-col items-center gap-2 text-center"
-              >
-                <Avatar className="h-16 w-16">
-                  {p.imageUrl ? (
-                    <AvatarImage src={p.imageUrl} alt={p.name} />
-                  ) : null}
-                  <AvatarFallback>
-                    {p.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm font-medium">{p.name}</p>
-                  {p.title && (
-                    <p className="text-xs text-muted-foreground">{p.title}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-        </div>
-        {data.items.every((p) => !p.name) && (
-          <p className="text-sm text-muted-foreground italic">
-            No panelists added yet.
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function PreviewCompanies({
-  data,
-}: {
-  data: SectionData & { type: "companies" };
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg">Companies</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-3 gap-4 sm:grid-cols-4">
-          {data.items
-            .filter((c) => c.name || c.logoUrl)
-            .map((c, i) => (
-              <div
-                key={i}
-                className="flex flex-col items-center gap-2 text-center"
-              >
-                <Avatar className="h-14 w-14 rounded-lg">
-                  {c.logoUrl ? (
-                    <AvatarImage
-                      src={c.logoUrl}
-                      alt={c.name}
-                      className="rounded-lg"
-                    />
-                  ) : null}
-                  <AvatarFallback className="rounded-lg">
-                    {(c.name || "?").charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <p className="text-xs font-medium">{c.name || "Unnamed"}</p>
-              </div>
-            ))}
-        </div>
-        {data.items.every((c) => !c.name && !c.logoUrl) && (
-          <p className="text-sm text-muted-foreground italic">
-            No companies added yet.
-          </p>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -398,6 +222,10 @@ export default function EventForm({
   ) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSave = async () => {
+    if (!form.category) {
+      toast.error("Please select a category before submitting.");
+      return;
+    }
     setSaving(true);
     try {
       // TODO: implement actual save logic (API call)
@@ -427,32 +255,6 @@ export default function EventForm({
     const oldIndex = sectionIds.indexOf(active.id as SectionType);
     const newIndex = sectionIds.indexOf(over.id as SectionType);
     setSections((prev) => arrayMove(prev, oldIndex, newIndex));
-  };
-
-  /* ── Helper: format date for preview ── */
-  const formatPreviewDate = () => {
-    if (!form.startDate) return "TBA";
-    const parts: string[] = [];
-    const d = new Date(form.startDate + "T00:00:00");
-    const dateStr = d.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-    parts.push(dateStr);
-    if (form.startTime) parts[0] += ` at ${form.startTime}`;
-    if (form.endDate) {
-      const ed = new Date(form.endDate + "T00:00:00");
-      let endStr = ed.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      });
-      if (form.endTime) endStr += ` at ${form.endTime}`;
-      parts.push(endStr);
-    }
-    return parts.join(" – ");
   };
 
   /* ── Render section card (edit mode) ── */
@@ -505,13 +307,13 @@ export default function EventForm({
   const renderPreviewSection = (section: SectionData) => {
     switch (section.type) {
       case "faq":
-        return <PreviewFAQ data={section} />;
+        return <FAQCard data={section} />;
       case "what-to-bring":
-        return <PreviewWhatToBring data={section} />;
+        return <WhatToBringCard data={section} />;
       case "panelists":
-        return <PreviewPanelists data={section} />;
+        return <PanelistsCard data={section} />;
       case "companies":
-        return <PreviewCompanies data={section} />;
+        return <CompaniesCard data={section} />;
     }
   };
 
@@ -574,19 +376,11 @@ export default function EventForm({
         <div className="mx-auto max-w-4xl px-6 py-8">
           <div className="space-y-6">
             {/* Thumbnail */}
-            {thumbnailUrl && (
-              <div className="flex justify-center">
-                <div className="w-2/3 overflow-hidden rounded-xl">
-                  <Image
-                    src={thumbnailUrl}
-                    alt="Event thumbnail"
-                    width={600}
-                    height={600}
-                    className="aspect-square w-full object-cover"
-                  />
-                </div>
+            <div className="flex justify-center">
+              <div className="w-2/3">
+                <ImagePreview src={thumbnailUrl} />
               </div>
-            )}
+            </div>
 
             {/* Event name */}
             <h1 className="text-4xl font-bold tracking-tight">
@@ -594,92 +388,27 @@ export default function EventForm({
             </h1>
 
             {/* Category + tags */}
-            {(form.category || form.tags.length > 0) && (
-              <div className="flex flex-wrap items-center gap-2">
-                {form.category && (
-                  <Badge variant="secondary">{form.category}</Badge>
-                )}
-                {form.tags.map((tag) => (
-                  <Badge key={tag} variant="outline">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <CategoryTagsDisplay category={form.category} tags={form.tags} />
 
             {/* Meta rows */}
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <CalendarDays className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <span className="text-base">{formatPreviewDate()}</span>
-              </div>
-              {form.location.displayName && (
-                <div className="flex min-w-0 items-center gap-3">
-                  <MapPin className="h-5 w-5 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="shrink-0 text-base font-medium">
-                      {form.location.displayName}
-                    </span>
-                    {form.location.address && (
-                      <span className="truncate text-sm text-muted-foreground">
-                        {form.location.address}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <div className="flex items-center -space-x-2">
-                  <Avatar className="h-8 w-8 border-2 border-background">
-                    {creatorProfile.avatar_url && (
-                      <AvatarImage
-                        src={creatorProfile.avatar_url}
-                        alt={creatorProfile.first_name}
-                      />
-                    )}
-                    <AvatarFallback className="text-xs">
-                      {creatorProfile.first_name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  {hostsData.map((h) => (
-                    <Avatar
-                      key={h.id}
-                      className="h-8 w-8 border-2 border-background"
-                    >
-                      {h.avatar_url && (
-                        <AvatarImage src={h.avatar_url} alt={h.first_name} />
-                      )}
-                      <AvatarFallback className="text-xs">
-                        {h.first_name.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  ))}
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {creatorProfile.first_name}
-                  {hostsData.length > 0 &&
-                    ` + ${hostsData.length} other${hostsData.length > 1 ? "s" : ""}`}
-                </span>
-              </div>
+              <DateDisplay
+                value={{
+                  startDate: form.startDate,
+                  startTime: form.startTime,
+                  endDate: form.endDate,
+                  endTime: form.endTime,
+                  timezone: form.timezone,
+                }}
+              />
+              <LocationDisplay value={form.location} />
+              <HostsDisplay creatorProfile={creatorProfile} hosts={hostsData} />
             </div>
           </div>
 
           {/* Content cards */}
           <div className="mt-10 space-y-6">
-            {/* Description */}
-            {form.description && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Event Description</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-                    {form.description}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+            <DescriptionCard description={form.description} />
 
             {/* Dynamic sections */}
             {sections.map((section) => (
@@ -696,7 +425,7 @@ export default function EventForm({
             <div className="flex justify-center">
               <div ref={thumbnailRef} className="relative w-full sm:w-2/5">
                 <AttentionBadge show={needsThumbnail} />
-                <EventImageUpload
+                <ImageUpload
                   currentImage={existingThumbnail}
                   onImageChange={(file) => updateField("thumbnailFile", file)}
                 />
@@ -705,7 +434,7 @@ export default function EventForm({
 
             {/* Event Name */}
             <Input
-              placeholder="Event name"
+              placeholder="Event Name"
               value={form.name}
               onChange={(e) => updateField("name", e.target.value)}
               className="h-auto border-0 bg-transparent px-0 text-5xl! font-bold tracking-tight placeholder:text-muted-foreground/40 focus-visible:ring-0"
@@ -715,7 +444,7 @@ export default function EventForm({
             <div className="flex flex-wrap items-center gap-6">
               <div ref={categoryRef} className="relative">
                 <AttentionBadge show={needsCategory} />
-                <EventCategoryPicker
+                <CategoryPicker
                   value={form.category}
                   onChange={(cat) => updateField("category", cat)}
                 />
@@ -723,7 +452,7 @@ export default function EventForm({
               <Separator className="h-6!" orientation="vertical" />
               <div ref={tagsRef} className="relative">
                 <AttentionBadge show={needsTags} />
-                <EventTagsPicker
+                <TagsPicker
                   value={form.tags}
                   onChange={(tags) => updateField("tags", tags)}
                 />
@@ -735,7 +464,7 @@ export default function EventForm({
               {/* Date */}
               <div ref={startDateRef} className="relative w-fit">
                 <AttentionBadge show={needsStartDate} />
-                <EventDatePicker
+                <DatePicker
                   value={{
                     startDate: form.startDate,
                     startTime: form.startTime,
@@ -759,7 +488,7 @@ export default function EventForm({
               {/* Location */}
               <div ref={locationRef} className="relative w-fit">
                 <AttentionBadge show={needsLocation} />
-                <EventLocationPicker
+                <LocationPicker
                   value={form.location}
                   onChange={(loc: LocationData) => updateField("location", loc)}
                 />
@@ -768,7 +497,7 @@ export default function EventForm({
               {/* Hosts */}
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <EventHostsPicker
+                <HostsPicker
                   creatorProfile={creatorProfile}
                   selectedHosts={form.hostIds}
                   selectedHostsData={hostsData}

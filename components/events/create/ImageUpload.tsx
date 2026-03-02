@@ -13,7 +13,7 @@ import { ImagePlus, X } from "lucide-react";
 import ImageCropper from "@/components/ui/ImageCropper";
 import Image from "next/image";
 
-interface EventImageUploadProps {
+interface ImageUploadProps {
   /** Current thumbnail URL (for edit mode) */
   currentImage?: string | null;
   /** Called with the cropped File when user confirms */
@@ -21,13 +21,10 @@ interface EventImageUploadProps {
 }
 
 /**
- * Event thumbnail upload with 16:9 aspect crop.
+ * Event thumbnail upload with 1:1 aspect crop.
  * Shows a drop zone / preview and opens a crop dialog on file select.
  */
-export function EventImageUpload({
-  currentImage,
-  onImageChange,
-}: EventImageUploadProps) {
+export function ImageUpload({ currentImage, onImageChange }: ImageUploadProps) {
   const [preview, setPreview] = useState<string | null>(currentImage ?? null);
   const [rawImage, setRawImage] = useState<string | null>(null);
   const [croppedFile, setCroppedFile] = useState<File | null>(null);
@@ -40,7 +37,6 @@ export function EventImageUpload({
       const url = URL.createObjectURL(file);
       setRawImage(url);
       setCropDialogOpen(true);
-      // Reset file input so same file can be re-selected
       e.target.value = "";
     },
     [],

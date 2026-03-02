@@ -21,6 +21,7 @@ import {
   ArrowLeft,
   Pencil,
 } from "lucide-react";
+import type { LocationData } from "../shared/types";
 
 /* ── Nominatim types ── */
 interface NominatimResult {
@@ -45,17 +46,6 @@ interface NominatimResult {
     country_code?: string;
     postcode?: string;
   };
-}
-
-/* ── Exported types ── */
-export interface LocationData {
-  displayName: string;
-  address: string;
-}
-
-interface EventLocationPickerProps {
-  value: LocationData;
-  onChange: (location: LocationData) => void;
 }
 
 /* ── Helpers ── */
@@ -158,31 +148,30 @@ function useNominatimSearch(query: string, debounceMs = 500) {
 /* ── Dialog pages ── */
 type DialogPage = "search" | "confirm";
 
-/* ── Main component ── */
-export function EventLocationPicker({
-  value,
-  onChange,
-}: EventLocationPickerProps) {
+interface LocationPickerProps {
+  value: LocationData;
+  onChange: (location: LocationData) => void;
+}
+
+/** Location picker with dialog-based Nominatim search + manual input. */
+export function LocationPicker({ value, onChange }: LocationPickerProps) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<DialogPage>("search");
   const [searchQuery, setSearchQuery] = useState("");
   const { results, loading } = useNominatimSearch(searchQuery);
 
-  // Draft state for the confirm page
   const [draftDisplayName, setDraftDisplayName] = useState("");
   const [draftAddress, setDraftAddress] = useState("");
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const displayNameRef = useRef<HTMLInputElement>(null);
 
-  /* ── Open dialog ── */
   const handleOpen = useCallback(() => {
     setSearchQuery("");
     setPage("search");
     setOpen(true);
   }, []);
 
-  /* ── Select a search result → go to confirm page ── */
   const handleSelectResult = useCallback((result: NominatimResult) => {
     const placeName = getPlaceName(result);
     const address = formatStreetAddress(result);
@@ -192,7 +181,6 @@ export function EventLocationPicker({
     setTimeout(() => displayNameRef.current?.focus(), 50);
   }, []);
 
-  /* ── "Input manually" → go to confirm page ── */
   const handleInputManually = useCallback(() => {
     const query = searchQuery.trim();
     setDraftDisplayName(query);
@@ -201,7 +189,6 @@ export function EventLocationPicker({
     setTimeout(() => displayNameRef.current?.focus(), 50);
   }, [searchQuery]);
 
-  /* ── Confirm → save to parent ── */
   const handleConfirm = useCallback(() => {
     const name = draftDisplayName.trim();
     if (!name) return;
@@ -209,13 +196,11 @@ export function EventLocationPicker({
     setOpen(false);
   }, [draftDisplayName, draftAddress, onChange]);
 
-  /* ── Clear location ── */
   const handleClear = useCallback(() => {
     onChange({ displayName: "", address: "" });
     setOpen(false);
   }, [onChange]);
 
-  /* ── Back to search ── */
   const handleBack = useCallback(() => {
     setPage("search");
     setTimeout(() => searchInputRef.current?.focus(), 50);

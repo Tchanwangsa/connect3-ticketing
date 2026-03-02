@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { EventFormData } from "./EventForm";
+import type { EventFormData } from "./shared/types";
 import type { SectionData, FAQSectionData } from "./sections";
 
 interface ChecklistItem {
