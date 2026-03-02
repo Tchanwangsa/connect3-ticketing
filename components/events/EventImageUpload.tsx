@@ -75,7 +75,7 @@ export function EventImageUpload({
 
   return (
     <>
-      <div className="relative mx-auto w-1/2 overflow-hidden rounded-xl border border-dashed border-border bg-muted/30">
+      <div className="relative mx-auto w-full overflow-hidden rounded-xl border border-dashed border-border bg-muted/30">
         {preview ? (
           <div className="group relative aspect-square w-full">
             <Image
