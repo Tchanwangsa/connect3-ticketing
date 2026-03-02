@@ -9,3 +9,4 @@ export { FAQCard } from "./FAQCard";
 export { WhatToBringCard } from "./WhatToBringCard";
 export { PanelistsCard } from "./PanelistsCard";
 export { CompaniesCard } from "./CompaniesCard";
+export { PricingDisplay } from "./PricingDisplay";

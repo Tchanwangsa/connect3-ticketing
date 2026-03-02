@@ -32,6 +32,20 @@ export interface ClubProfile {
   avatar_url: string | null;
 }
 
+/** A single ticket tier (e.g. Early Bird – $10). */
+export interface TicketTier {
+  id: string;
+  label: string; // e.g. "Early Bird", "Members", custom text
+  price: number; // 0 = free
+}
+
+/** Pre-defined ticket-type labels users can pick. */
+export const PRESET_TICKET_TYPES = [
+  "Early Bird",
+  "Members",
+  "Non-Members",
+] as const;
+
 /** Composite value for the hosts form input (ids + cached profile objects). */
 export interface HostsValue {
   ids: string[];
@@ -52,4 +66,6 @@ export interface EventFormData {
   tags: string[];
   hostIds: string[];
   thumbnailFile: File | null;
+  /** Ticket pricing tiers — empty array means "Free". */
+  pricing: TicketTier[];
 }

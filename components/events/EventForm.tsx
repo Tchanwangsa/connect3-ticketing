@@ -24,6 +24,7 @@ import { LocationPicker } from "./create/LocationPicker";
 import { HostsPicker } from "./create/HostsPicker";
 import { CategoryPicker } from "./create/CategoryPicker";
 import { TagsPicker } from "./create/TagsPicker";
+import { PricingPicker } from "./create/PricingPicker";
 
 /* ── Preview-mode components ── */
 import {
@@ -38,6 +39,7 @@ import {
   WhatToBringCard,
   PanelistsCard,
   CompaniesCard,
+  PricingDisplay,
 } from "./preview";
 
 /* ── Other ── */
@@ -172,6 +174,7 @@ export default function EventForm({
     tags: initialData?.tags ?? [],
     hostIds: initialData?.hostIds ?? [],
     thumbnailFile: null,
+    pricing: initialData?.pricing ?? [],
   });
 
   // Cache the full profile objects for additional hosts
@@ -408,6 +411,7 @@ export default function EventForm({
               />
               <LocationDisplay value={form.location} />
               <HostsDisplay creatorProfile={creatorProfile} value={hostsData} />
+              <PricingDisplay value={form.pricing} />
             </div>
           </div>
 
@@ -511,6 +515,12 @@ export default function EventForm({
                   }}
                 />
               </div>
+
+              {/* Pricing */}
+              <PricingPicker
+                value={form.pricing}
+                onChange={(tiers) => updateField("pricing", tiers)}
+              />
             </div>
           </div>
 
