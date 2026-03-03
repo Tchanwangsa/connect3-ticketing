@@ -31,27 +31,33 @@ export function SectionWrapper({
   headerRight,
   children,
 }: SectionWrapperProps) {
+  const hasHeader = !!(title || icon || headerLeft || headerRight);
+
   if (layout === "classic") {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {headerLeft}
-            {icon && (
-              <span
-                className={cn(
-                  "[&>svg]:h-5 [&>svg]:w-5",
-                  isDark ? "text-neutral-400" : "text-muted-foreground",
+        {hasHeader && (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {headerLeft}
+                {icon && (
+                  <span
+                    className={cn(
+                      "[&>svg]:h-5 [&>svg]:w-5",
+                      isDark ? "text-neutral-400" : "text-muted-foreground",
+                    )}
+                  >
+                    {icon}
+                  </span>
                 )}
-              >
-                {icon}
-              </span>
-            )}
-            <h3 className="text-xl font-bold">{title}</h3>
-          </div>
-          {headerRight}
-        </div>
-        <Separator className={isDark ? "bg-neutral-700" : undefined} />
+                {title && <h3 className="text-xl font-bold">{title}</h3>}
+              </div>
+              {headerRight}
+            </div>
+            <Separator className={isDark ? "bg-neutral-700" : undefined} />
+          </>
+        )}
         <div>{children}</div>
       </div>
     );
@@ -64,25 +70,29 @@ export function SectionWrapper({
         isDark && "border-neutral-700 bg-neutral-800 text-neutral-100",
       )}
     >
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {headerLeft}
-            {icon && (
-              <span
-                className={cn(
-                  "[&>svg]:h-5 [&>svg]:w-5",
-                  isDark ? "text-neutral-400" : "text-muted-foreground",
-                )}
-              >
-                {icon}
-              </span>
-            )}
-            <CardTitle className="text-xl font-bold">{title}</CardTitle>
+      {hasHeader && (
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {headerLeft}
+              {icon && (
+                <span
+                  className={cn(
+                    "[&>svg]:h-5 [&>svg]:w-5",
+                    isDark ? "text-neutral-400" : "text-muted-foreground",
+                  )}
+                >
+                  {icon}
+                </span>
+              )}
+              {title && (
+                <CardTitle className="text-xl font-bold">{title}</CardTitle>
+              )}
+            </div>
+            {headerRight}
           </div>
-          {headerRight}
-        </div>
-      </CardHeader>
+        </CardHeader>
+      )}
       <CardContent>{children}</CardContent>
     </Card>
   );

@@ -64,16 +64,61 @@ export interface CarouselImage {
 
 export type ThemeMode = "light" | "dark" | "adaptive";
 export type ThemeLayout = "card" | "classic";
+export type ThemeAccent =
+  | "none"
+  | "yellow"
+  | "cyan"
+  | "purple"
+  | "orange"
+  | "green"
+  | "custom";
 
 export interface EventTheme {
   mode: ThemeMode;
   layout: ThemeLayout;
+  accent: ThemeAccent;
+  /** Hex colour used when accent === "custom" */
+  accentCustom?: string;
 }
 
 export const DEFAULT_THEME: EventTheme = {
   mode: "adaptive",
   layout: "card",
+  accent: "none",
 };
+
+/**
+ * Map an accent value to a CSS gradient string.
+ * The gradient fades from the accent colour at the top to transparent,
+ * so the underlying page background shows through.
+ */
+export function getAccentGradient(
+  accent: ThemeAccent,
+  isDark: boolean,
+  customHex?: string,
+): string | null {
+  if (accent === "none") return null;
+
+  const opacity = isDark ? 0.25 : 0.18;
+
+  if (accent === "custom") {
+    const hex = customHex || "#888888";
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `linear-gradient(to bottom, rgba(${r},${g},${b},${opacity}) 0%, transparent 45%)`;
+  }
+
+  const colorMap: Record<Exclude<ThemeAccent, "none" | "custom">, string> = {
+    yellow: `rgba(234,179,8,${opacity})`,
+    cyan: `rgba(6,182,212,${opacity})`,
+    purple: `rgba(168,85,247,${opacity})`,
+    orange: `rgba(249,115,22,${opacity})`,
+    green: `rgba(34,197,94,${opacity})`,
+  };
+
+  return `linear-gradient(to bottom, ${colorMap[accent]} 0%, transparent 45%)`;
+}
 
 /**
  * Resolved color tokens for a given theme mode.

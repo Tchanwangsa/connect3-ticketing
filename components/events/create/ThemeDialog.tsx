@@ -11,9 +11,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { Sun, Moon, Monitor, LayoutGrid, AlignJustify } from "lucide-react";
-import type { EventTheme, ThemeMode, ThemeLayout } from "../shared/types";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Sun,
+  Moon,
+  Monitor,
+  LayoutGrid,
+  AlignJustify,
+  Ban,
+  Pipette,
+} from "lucide-react";
+import type {
+  EventTheme,
+  ThemeMode,
+  ThemeLayout,
+  ThemeAccent,
+} from "../shared/types";
 import { cn } from "@/lib/utils";
+import { HexColorPicker } from "react-colorful";
 
 interface ThemeDialogProps {
   open: boolean;
@@ -50,6 +69,21 @@ const LAYOUT_OPTIONS: {
     icon: <AlignJustify className="h-4 w-4" />,
     description: "Headers with separator lines",
   },
+];
+
+const ACCENT_OPTIONS: {
+  value: ThemeAccent;
+  label: string;
+  /** Tailwind bg class for the swatch (or null for the "none" icon) */
+  swatch: string | null;
+}[] = [
+  { value: "none", label: "None", swatch: null },
+  { value: "yellow", label: "Yellow", swatch: "bg-yellow-400" },
+  { value: "cyan", label: "Cyan", swatch: "bg-cyan-400" },
+  { value: "purple", label: "Purple", swatch: "bg-purple-400" },
+  { value: "orange", label: "Orange", swatch: "bg-orange-400" },
+  { value: "green", label: "Green", swatch: "bg-green-400" },
+  { value: "custom", label: "Custom", swatch: null },
 ];
 
 export function ThemeDialog({
@@ -136,9 +170,135 @@ export function ThemeDialog({
               })}
             </div>
           </div>
+
+          <Separator />
+
+          {/* ── Background Accent ── */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Background Accent</Label>
+            <p className="text-xs text-muted-foreground">
+              Adds a subtle gradient tint to the top of the page background.
+            </p>
+            <div className="flex gap-2 pt-1">
+              {ACCENT_OPTIONS.map((opt) => {
+                const isActive = theme.accent === opt.value;
+                return opt.value === "custom" ? (
+                  <Popover key={opt.value}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        title={opt.label}
+                        className={cn(
+                          "relative flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all",
+                          isActive
+                            ? "border-transparent scale-110"
+                            : "border-border hover:border-muted-foreground/50",
+                        )}
+                        style={
+                          isActive
+                            ? {
+                                backgroundImage:
+                                  "linear-gradient(white, white), linear-gradient(135deg, #f472b6, #a855f7, #06b6d4, #22c55e, #eab308)",
+                                backgroundOrigin: "border-box",
+                                backgroundClip: "padding-box, border-box",
+                              }
+                            : undefined
+                        }
+                        onClick={() =>
+                          applyLive({
+                            ...theme,
+                            accent: "custom",
+                            ...(!theme.accentCustom
+                              ? { accentCustom: "#6366f1" }
+                              : {}),
+                          })
+                        }
+                      >
+                        {theme.accent === "custom" && theme.accentCustom ? (
+                          <span
+                            className="h-5 w-5 rounded-full border"
+                            style={{ backgroundColor: theme.accentCustom }}
+                          />
+                        ) : (
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-linear-to-br from-pink-400 via-purple-400 to-cyan-400">
+                            <Pipette className="h-3 w-3 text-white" />
+                          </span>
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side="right"
+                      align="start"
+                      className="w-auto space-y-3 p-3"
+                    >
+                      <HexColorPicker
+                        color={theme.accentCustom || "#6366f1"}
+                        onChange={(color) =>
+                          applyLive({
+                            ...theme,
+                            accent: "custom",
+                            accentCustom: color,
+                          })
+                        }
+                        style={{ width: 200, height: 160 }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-7 w-7 shrink-0 rounded-md border"
+                          style={{
+                            backgroundColor: theme.accentCustom || "#6366f1",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          maxLength={7}
+                          value={theme.accentCustom || "#6366f1"}
+                          onChange={(e) => {
+                            const v = e.currentTarget.value;
+                            applyLive({
+                              ...theme,
+                              accent: "custom",
+                              accentCustom: v,
+                            });
+                          }}
+                          className="h-8 w-full rounded-md border bg-transparent px-2 text-sm font-mono"
+                        />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    title={opt.label}
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all",
+                      isActive
+                        ? "border-primary scale-110"
+                        : "border-border hover:border-muted-foreground/50",
+                    )}
+                    onClick={() =>
+                      applyLive({
+                        ...theme,
+                        accent: opt.value,
+                      })
+                    }
+                  >
+                    {opt.value === "none" ? (
+                      <Ban className="h-4 w-4 text-red-400" />
+                    ) : (
+                      <span
+                        className={cn("h-5 w-5 rounded-full", opt.swatch)}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2">
           <Button
             variant="outline"
             size="sm"

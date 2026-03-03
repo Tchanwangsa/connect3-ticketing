@@ -14,7 +14,11 @@ import type {
   CarouselImage,
   EventTheme,
 } from "./shared/types";
-import { DEFAULT_THEME, getThemeColors } from "./shared/types";
+import {
+  DEFAULT_THEME,
+  getThemeColors,
+  getAccentGradient,
+} from "./shared/types";
 
 /* ── Unified field components ── */
 import {
@@ -33,6 +37,7 @@ import {
 /* ── Create-only UI (dialogs) ── */
 import { ImageManagerDialog } from "./create/ImageManagerDialog";
 import { ThemeDialog } from "./create/ThemeDialog";
+import { SectionWrapper } from "./preview/SectionWrapper";
 
 /* ── Other ── */
 import {
@@ -206,6 +211,12 @@ export default function EventForm({
 
   const pageBgClass = colors.pageBg;
   const pageTextClass = colors.text;
+
+  /** Accent gradient for the content background */
+  const accentGradient = useMemo(
+    () => getAccentGradient(theme.accent, isDark, theme.accentCustom),
+    [theme.accent, theme.accentCustom, isDark],
+  );
 
   /** Cards should use darker surfaces when the page is in dark mode */
   const cardDark = isDark;
@@ -385,166 +396,171 @@ export default function EventForm({
         </div>
       </div>
 
-      {/* ── Single unified layout ── */}
-      <div className={cn("mx-auto max-w-4xl px-6 py-8", pageTextClass)}>
-        {/* Hero Section */}
-        <div className="space-y-6">
-          <div ref={thumbnailRef} className="relative w-full">
-            {isEditing && <AttentionBadge show={needsThumbnail} />}
-            <EventImageField
-              mode={viewMode}
-              images={carouselImages}
-              existingImages={existingImages}
-              onEditClick={() => setManagerOpen(true)}
-            />
+      {/* ── Full-width accent gradient overlay ── */}
+      <div style={accentGradient ? { background: accentGradient } : undefined}>
+        {/* ── Single unified layout ── */}
+        <div className={cn("mx-auto max-w-4xl px-6 py-8", pageTextClass)}>
+          {/* Hero Section */}
+          <div className="space-y-6">
+            <div ref={thumbnailRef} className="relative w-full">
+              {isEditing && <AttentionBadge show={needsThumbnail} />}
+              <EventImageField
+                mode={viewMode}
+                images={carouselImages}
+                existingImages={existingImages}
+                onEditClick={() => setManagerOpen(true)}
+              />
+            </div>
+
+            <SectionWrapper title="" layout={theme.layout} isDark={cardDark}>
+              <div className="space-y-6">
+                <EventNameField
+                  mode={viewMode}
+                  value={form.name}
+                  onChange={(v) => updateField("name", v)}
+                  className={pageTextClass}
+                />
+
+                <div
+                  className={cn(
+                    "flex flex-wrap items-center",
+                    isEditing ? "gap-6" : "gap-2",
+                  )}
+                >
+                  <div ref={categoryRef} className="relative">
+                    {isEditing && <AttentionBadge show={needsCategory} />}
+                    <EventCategoryField
+                      mode={viewMode}
+                      value={form.category}
+                      onChange={(cat) => updateField("category", cat)}
+                    />
+                  </div>
+                  <Separator
+                    className={isEditing ? "h-6!" : "h-5!"}
+                    orientation="vertical"
+                  />
+                  <div ref={tagsRef} className="relative">
+                    {isEditing && <AttentionBadge show={needsTags} />}
+                    <EventTagsField
+                      mode={viewMode}
+                      value={form.tags}
+                      onChange={(tags) => updateField("tags", tags)}
+                    />
+                  </div>
+                </div>
+
+                {/* Meta rows */}
+                <div className="space-y-3">
+                  <div
+                    ref={startDateRef}
+                    className={cn("relative", isEditing && "w-fit")}
+                  >
+                    {isEditing && <AttentionBadge show={needsStartDate} />}
+                    <EventDateField
+                      mode={viewMode}
+                      value={{
+                        startDate: form.startDate,
+                        startTime: form.startTime,
+                        endDate: form.endDate,
+                        endTime: form.endTime,
+                        timezone: form.timezone,
+                      }}
+                      onChange={(d) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          startDate: d.startDate,
+                          startTime: d.startTime,
+                          endDate: d.endDate,
+                          endTime: d.endTime,
+                          timezone: d.timezone,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div
+                    ref={locationRef}
+                    className={cn("relative", isEditing && "w-fit")}
+                  >
+                    {isEditing && <AttentionBadge show={needsLocation} />}
+                    <EventLocationField
+                      mode={viewMode}
+                      value={form.location}
+                      onChange={(loc) => updateField("location", loc)}
+                    />
+                  </div>
+                  <EventHostsField
+                    mode={viewMode}
+                    creatorProfile={creatorProfile}
+                    value={{ ids: form.hostIds, data: hostsData }}
+                    onChange={({ ids, data }) => {
+                      updateField("hostIds", ids);
+                      setHostsData(data);
+                    }}
+                  />
+                  <EventPricingField
+                    mode={viewMode}
+                    value={form.pricing}
+                    onChange={(tiers) => updateField("pricing", tiers)}
+                  />
+                </div>
+              </div>
+            </SectionWrapper>
           </div>
 
-          <EventNameField
-            mode={viewMode}
-            value={form.name}
-            onChange={(v) => updateField("name", v)}
-            className={pageTextClass}
-          />
-
-          {/* Classic layout: separator below event name */}
-          {theme.layout === "classic" && (
-            <Separator className={cardDark ? "bg-neutral-700" : undefined} />
-          )}
-
+          {/* Content cards */}
           <div
             className={cn(
-              "flex flex-wrap items-center",
-              isEditing ? "gap-6" : "gap-2",
+              "mt-10",
+              theme.layout === "classic" ? "space-y-10" : "space-y-6",
             )}
           >
-            <div ref={categoryRef} className="relative">
-              {isEditing && <AttentionBadge show={needsCategory} />}
-              <EventCategoryField
-                mode={viewMode}
-                value={form.category}
-                onChange={(cat) => updateField("category", cat)}
-              />
-            </div>
-            <Separator
-              className={isEditing ? "h-6!" : "h-5!"}
-              orientation="vertical"
-            />
-            <div ref={tagsRef} className="relative">
-              {isEditing && <AttentionBadge show={needsTags} />}
-              <EventTagsField
-                mode={viewMode}
-                value={form.tags}
-                onChange={(tags) => updateField("tags", tags)}
-              />
-            </div>
-          </div>
-
-          {/* Meta rows */}
-          <div className="space-y-3">
-            <div
-              ref={startDateRef}
-              className={cn("relative", isEditing && "w-fit")}
-            >
-              {isEditing && <AttentionBadge show={needsStartDate} />}
-              <EventDateField
-                mode={viewMode}
-                value={{
-                  startDate: form.startDate,
-                  startTime: form.startTime,
-                  endDate: form.endDate,
-                  endTime: form.endTime,
-                  timezone: form.timezone,
-                }}
-                onChange={(d) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    startDate: d.startDate,
-                    startTime: d.startTime,
-                    endDate: d.endDate,
-                    endTime: d.endTime,
-                    timezone: d.timezone,
-                  }))
-                }
-              />
-            </div>
-            <div
-              ref={locationRef}
-              className={cn("relative", isEditing && "w-fit")}
-            >
-              {isEditing && <AttentionBadge show={needsLocation} />}
-              <EventLocationField
-                mode={viewMode}
-                value={form.location}
-                onChange={(loc) => updateField("location", loc)}
-              />
-            </div>
-            <EventHostsField
+            <EventDescriptionField
               mode={viewMode}
-              creatorProfile={creatorProfile}
-              value={{ ids: form.hostIds, data: hostsData }}
-              onChange={({ ids, data }) => {
-                updateField("hostIds", ids);
-                setHostsData(data);
-              }}
+              value={form.description}
+              onChange={(v) => updateField("description", v)}
+              layout={theme.layout}
+              isDark={cardDark}
             />
-            <EventPricingField
-              mode={viewMode}
-              value={form.pricing}
-              onChange={(tiers) => updateField("pricing", tiers)}
-            />
-          </div>
-        </div>
 
-        {/* Content cards */}
-        <div
-          className={cn(
-            "mt-10",
-            theme.layout === "classic" ? "space-y-10" : "space-y-6",
-          )}
-        >
-          <EventDescriptionField
-            mode={viewMode}
-            value={form.description}
-            onChange={(v) => updateField("description", v)}
-            layout={theme.layout}
-            isDark={cardDark}
-          />
-
-          {isEditing ? (
-            <DndContext
-              sensors={sectionSensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleSectionDragEnd}
-            >
-              <SortableContext
-                items={sectionIds}
-                strategy={verticalListSortingStrategy}
+            {isEditing ? (
+              <DndContext
+                sensors={sectionSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleSectionDragEnd}
               >
-                {sections.map((section, i) => (
-                  <SortableSectionWrapper key={section.type} id={section.type}>
-                    {(dragHandleProps) =>
-                      renderSectionContent(section, i, dragHandleProps)
-                    }
-                  </SortableSectionWrapper>
-                ))}
-              </SortableContext>
-            </DndContext>
-          ) : (
-            sections.map((section, i) => (
-              <div key={section.type}>{renderSectionContent(section, i)}</div>
-            ))
-          )}
+                <SortableContext
+                  items={sectionIds}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {sections.map((section, i) => (
+                    <SortableSectionWrapper
+                      key={section.type}
+                      id={section.type}
+                    >
+                      {(dragHandleProps) =>
+                        renderSectionContent(section, i, dragHandleProps)
+                      }
+                    </SortableSectionWrapper>
+                  ))}
+                </SortableContext>
+              </DndContext>
+            ) : (
+              sections.map((section, i) => (
+                <div key={section.type}>{renderSectionContent(section, i)}</div>
+              ))
+            )}
 
-          {isEditing && (
-            <div ref={!faqSection ? faqsRef : undefined}>
-              <AddSectionButton
-                activeSections={sections.map((s) => s.type)}
-                onAdd={addSection}
-                showAttentionBadge={faqBadgeOnAddSection}
-                isDark={isDark}
-              />
-            </div>
-          )}
+            {isEditing && (
+              <div ref={!faqSection ? faqsRef : undefined}>
+                <AddSectionButton
+                  activeSections={sections.map((s) => s.type)}
+                  onAdd={addSection}
+                  showAttentionBadge={faqBadgeOnAddSection}
+                  isDark={isDark}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
