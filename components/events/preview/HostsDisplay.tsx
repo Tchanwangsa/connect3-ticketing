@@ -53,7 +53,10 @@ export function HostsDisplay({ creatorProfile, value }: HostsDisplayProps) {
       ) : (
         <HoverCard openDelay={200} closeDelay={100}>
           <HoverCardTrigger asChild>{trigger}</HoverCardTrigger>
-          <HoverCardContent className="w-56 p-3" align="start">
+          <HoverCardContent
+            className="min-w-56 max-w-96 p-3 w-full"
+            align="start"
+          >
             <HostDisplayContent creatorProfile={creatorProfile} hosts={value} />
           </HoverCardContent>
         </HoverCard>

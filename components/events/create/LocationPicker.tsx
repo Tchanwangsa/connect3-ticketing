@@ -230,8 +230,13 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
 
   const handleInputManually = useCallback(() => {
     const query = searchQuery.trim();
-    setDraftDisplayName(query);
-    setDraftAddress("");
+    // Only overwrite drafts if the user actually typed something new
+    if (query) {
+      setDraftDisplayName(query);
+      setDraftAddress("");
+    }
+    // If query is empty and drafts already have content, just navigate back
+    // to confirm without resetting
     setPage("confirm");
     setTimeout(() => displayNameRef.current?.focus(), 50);
   }, [searchQuery]);

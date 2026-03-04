@@ -26,13 +26,11 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useState } from "react";
 
 const SUGGESTED_QUESTIONS = [
-  "Dress Code",
-  "Experience Level",
-  "Venue Address",
-  "Contact Information",
-  "Parking & Transportation",
-  "Dietary Restrictions",
-  "Accessibility",
+  "What is the Dress Code/Theme?",
+  "Is this event beginner-friendly?",
+  "Will there be food and drinks?",
+  "Is this event wheelchair accessible?",
+  "Do I have to be a member to attend?",
 ];
 
 interface FAQSectionCardProps {

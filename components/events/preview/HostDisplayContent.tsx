@@ -12,13 +12,13 @@ export function HostDisplayContent({
   hosts,
 }: HostDisplayContentProps) {
   return (
-    <div>
+    <div className="w-fit">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Hosts
       </p>
       <div className="space-y-2">
         {[creatorProfile, ...hosts].map((h) => (
-          <div key={h.id} className="flex items-center gap-2">
+          <div key={h.id} className="flex items-center gap-2 max-w-full">
             <Avatar className="h-7 w-7">
               {h.avatar_url && (
                 <AvatarImage src={h.avatar_url} alt={h.first_name} />
@@ -27,7 +27,7 @@ export function HostDisplayContent({
                 {h.first_name.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <span className="text-sm font-medium">{h.first_name}</span>
+            <span className="text-sm font-medium truncate">{h.first_name}</span>
           </div>
         ))}
       </div>

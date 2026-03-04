@@ -51,7 +51,7 @@ export function SectionWrapper({
                     {icon}
                   </span>
                 )}
-                {title && <h3 className="text-xl font-bold">{title}</h3>}
+                {title && <h3 className="text-2xl font-bold">{title}</h3>}
               </div>
               {headerRight}
             </div>
