@@ -90,7 +90,7 @@ export function EventChecklist({
   onDismissChange,
   isDark,
 }: EventChecklistProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const effectiveForm = useMemo(
     () =>
