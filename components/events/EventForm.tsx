@@ -30,6 +30,7 @@ import {
   EventLocationField,
   EventHostsField,
   EventPricingField,
+  EventLinksField,
   EventDescriptionField,
   EventSectionField,
 } from "./fields";
@@ -179,6 +180,7 @@ export default function EventForm({
     hostIds: initialData?.hostIds ?? [],
     imageFiles: initialData?.imageFiles ?? [],
     pricing: initialData?.pricing ?? [],
+    links: initialData?.links ?? [],
     theme: initialData?.theme ?? { ...DEFAULT_THEME },
   } as EventFormData);
 
@@ -545,6 +547,11 @@ export default function EventForm({
                     mode={viewMode}
                     value={form.pricing}
                     onChange={(tiers) => updateField("pricing", tiers)}
+                  />
+                  <EventLinksField
+                    mode={viewMode}
+                    value={form.links}
+                    onChange={(links) => updateField("links", links)}
                   />
                 </div>
               </div>

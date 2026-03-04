@@ -7,4 +7,6 @@ export { DatePicker } from "./DatePicker";
 export { LocationPicker } from "./LocationPicker";
 export { HostsPicker } from "./HostsPicker";
 export { PricingPicker } from "./PricingPicker";
+export { LinksPicker } from "./LinksPicker";
+export { LinksModal } from "./LinksModal";
 export { ThemeDialog } from "./ThemeDialog";

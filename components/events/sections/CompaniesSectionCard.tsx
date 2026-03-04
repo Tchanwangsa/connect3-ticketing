@@ -2,11 +2,25 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, ImagePlus, GripVertical } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ImagePlus,
+  GripVertical,
+  ChevronDown,
+  PenLine,
+  Library,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { CompaniesSectionData, Company } from "./types";
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -24,6 +38,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { BrowseCompaniesDialog } from "./BrowseCompaniesDialog";
 
 interface CompaniesSectionCardProps {
   data: CompaniesSectionData;
@@ -155,6 +170,8 @@ export function CompaniesSectionCard({
   onChange,
   isDark,
 }: CompaniesSectionCardProps) {
+  const [browseOpen, setBrowseOpen] = useState(false);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
@@ -173,10 +190,28 @@ export function CompaniesSectionCard({
     onChange({ ...data, items });
   };
 
-  const addItem = () => {
+  const addCustomItem = () => {
     onChange({
       ...data,
       items: [...data.items, { name: "", logoUrl: "" }],
+    });
+  };
+
+  const addPresetCompanies = (companies: Company[]) => {
+    // Filter out any that already exist (by name, case-insensitive)
+    const existingNames = new Set(data.items.map((c) => c.name.toLowerCase()));
+    const newCompanies = companies.filter(
+      (c) => !existingNames.has(c.name.toLowerCase()),
+    );
+    if (newCompanies.length === 0) return;
+
+    // If the only existing item is a blank placeholder, replace it
+    const isSingleBlank =
+      data.items.length === 1 && !data.items[0].name && !data.items[0].logoUrl;
+
+    onChange({
+      ...data,
+      items: isSingleBlank ? newCompanies : [...data.items, ...newCompanies],
     });
   };
 
@@ -221,20 +256,45 @@ export function CompaniesSectionCard({
           ))}
         </SortableContext>
       </DndContext>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={addItem}
-        className={cn(
-          "mt-3 w-full gap-1",
-          isDark &&
-            "border-neutral-600 text-neutral-300 hover:bg-neutral-700 hover:text-white",
-        )}
-      >
-        <Plus className="h-4 w-4" />
-        Add Company
-      </Button>
+
+      {/* Add Company dropdown — Custom or Browse */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "mt-3 w-full gap-1",
+              isDark &&
+                "border-neutral-600 text-neutral-300 hover:bg-neutral-700 hover:text-white",
+            )}
+          >
+            <Plus className="h-4 w-4" />
+            Add Company
+            <ChevronDown className="ml-auto h-3.5 w-3.5 opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center" className="w-48">
+          <DropdownMenuItem onClick={addCustomItem}>
+            <PenLine className="mr-2 h-4 w-4" />
+            Custom
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setBrowseOpen(true)}>
+            <Library className="mr-2 h-4 w-4" />
+            Browse
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Browse preset companies dialog */}
+      <BrowseCompaniesDialog
+        open={browseOpen}
+        onOpenChange={setBrowseOpen}
+        existingCompanies={data.items}
+        onAdd={addPresetCompanies}
+        isDark={isDark}
+      />
     </div>
   );
 }

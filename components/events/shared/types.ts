@@ -39,6 +39,13 @@ export interface TicketTier {
   price: number; // 0 = free
 }
 
+/** A single event link (e.g. website, social, registration). */
+export interface EventLink {
+  id: string;
+  url: string;
+  title: string; // optional display title — empty string = show URL only
+}
+
 /** Pre-defined ticket-type labels users can pick. */
 export const PRESET_TICKET_TYPES = [
   "All",
@@ -220,6 +227,8 @@ export interface EventFormData {
   imageFiles: File[];
   /** Ticket pricing tiers — empty array means "Free". */
   pricing: TicketTier[];
+  /** External links (website, socials, etc.). */
+  links: EventLink[];
   /** Page appearance customization. */
   theme: EventTheme;
 }

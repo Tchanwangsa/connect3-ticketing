@@ -38,7 +38,7 @@ const SECTION_META: Record<
   "refund-policy": { title: "Refund Policy", icon: <ReceiptText /> },
   "what-to-bring": { title: "What To Bring", icon: <Backpack /> },
   panelists: { title: "Panelists / Lineup", icon: <Mic /> },
-  companies: { title: "Companies", icon: <Building2 /> },
+  companies: { title: "Companies / Institutions", icon: <Building2 /> },
 };
 
 interface EventSectionFieldProps {

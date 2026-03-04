@@ -67,6 +67,11 @@ export const SECTION_META: Record<
     description: "Frequently asked questions",
     icon: "HelpCircle",
   },
+  "refund-policy": {
+    label: "Refund Policy",
+    description: "Describe your refund policy",
+    icon: "ReceiptText",
+  },
   "what-to-bring": {
     label: "What To Bring",
     description: "Items attendees should bring",
@@ -78,14 +83,9 @@ export const SECTION_META: Record<
     icon: "Mic",
   },
   companies: {
-    label: "Companies",
+    label: "Companies / Institutions",
     description: "Sponsors or participating companies",
     icon: "Building2",
-  },
-  "refund-policy": {
-    label: "Refund Policy",
-    description: "Describe your refund policy",
-    icon: "ReceiptText",
   },
 };
 
