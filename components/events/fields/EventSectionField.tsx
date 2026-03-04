@@ -7,6 +7,7 @@ import {
   WhatToBringSectionCard,
   PanelistsSectionCard,
   CompaniesSectionCard,
+  RefundPolicySectionCard,
   SectionDragHandle,
 } from "../sections";
 import {
@@ -14,11 +15,19 @@ import {
   WhatToBringCard,
   PanelistsCard,
   CompaniesCard,
+  RefundPolicyCard,
   SectionWrapper,
 } from "../preview";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { HelpCircle, Backpack, Mic, Building2, Trash2 } from "lucide-react";
+import {
+  HelpCircle,
+  Backpack,
+  Mic,
+  Building2,
+  ReceiptText,
+  Trash2,
+} from "lucide-react";
 
 /* ── Section metadata (title + icon per type) ── */
 const SECTION_META: Record<
@@ -26,6 +35,7 @@ const SECTION_META: Record<
   { title: string; icon: React.ReactNode }
 > = {
   faq: { title: "FAQ", icon: <HelpCircle /> },
+  "refund-policy": { title: "Refund Policy", icon: <ReceiptText /> },
   "what-to-bring": { title: "What To Bring", icon: <Backpack /> },
   panelists: { title: "Panelists / Lineup", icon: <Mic /> },
   companies: { title: "Companies", icon: <Building2 /> },
@@ -87,6 +97,8 @@ export function EventSectionField({
           return <PanelistsCard data={section} />;
         case "companies":
           return <CompaniesCard data={section} />;
+        case "refund-policy":
+          return <RefundPolicyCard data={section} />;
       }
     }
 
@@ -118,6 +130,14 @@ export function EventSectionField({
       case "companies":
         return (
           <CompaniesSectionCard
+            data={section}
+            onChange={(d) => onChange?.(index, d)}
+            isDark={isDark}
+          />
+        );
+      case "refund-policy":
+        return (
+          <RefundPolicySectionCard
             data={section}
             onChange={(d) => onChange?.(index, d)}
             isDark={isDark}

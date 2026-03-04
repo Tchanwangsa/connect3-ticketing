@@ -13,6 +13,7 @@ import {
   Mic,
   Building2,
   Check,
+  ReceiptText,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ import { SECTION_TYPES, SECTION_META, type SectionType } from "./types";
 
 const ICON_MAP: Record<SectionType, React.ElementType> = {
   faq: HelpCircle,
+  "refund-policy": ReceiptText,
   "what-to-bring": Backpack,
   panelists: Mic,
   companies: Building2,

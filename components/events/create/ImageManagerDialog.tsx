@@ -3,7 +3,15 @@
 import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
-import { GripVertical, ImagePlus, Plus, Star, Trash2 } from "lucide-react";
+import {
+  GripVertical,
+  ImagePlus,
+  Plus,
+  Star,
+  Trash2,
+  CheckCircle2,
+  MousePointerClick,
+} from "lucide-react";
 import ImageCropper from "@/components/ui/ImageCropper";
 import Image from "next/image";
 import {
@@ -36,11 +44,17 @@ function SortableGridItem({
   index,
   onRemove,
   onCropClick,
+  selectMode,
+  isSelected,
+  onToggleSelect,
 }: {
   image: CarouselImage;
   index: number;
   onRemove: () => void;
   onCropClick: () => void;
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const {
     attributes,
@@ -65,7 +79,7 @@ function SortableGridItem({
       ref={setNodeRef}
       style={style}
       className="group/item relative aspect-square overflow-hidden rounded-lg border bg-muted cursor-pointer"
-      onClick={onCropClick}
+      onClick={selectMode ? onToggleSelect : onCropClick}
     >
       <Image
         src={image.preview}
@@ -75,12 +89,28 @@ function SortableGridItem({
         draggable={false}
       />
 
-      {/* Drag handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing"
-      />
+      {/* Drag handle (disabled in select mode) */}
+      {!selectMode && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute inset-0 cursor-grab active:cursor-grabbing"
+        />
+      )}
+
+      {/* Selection overlay */}
+      {selectMode && isSelected && (
+        <div className="absolute inset-0 bg-primary/20 ring-2 ring-inset ring-primary rounded-lg" />
+      )}
+
+      {/* Selection checkbox */}
+      {selectMode && (
+        <div className="absolute right-1.5 top-1.5 z-10">
+          <CheckCircle2
+            className={`h-5 w-5 drop-shadow ${isSelected ? "text-primary fill-primary-foreground" : "text-white/70"}`}
+          />
+        </div>
+      )}
 
       {/* Thumbnail badge */}
       {index === 0 && (
@@ -95,17 +125,19 @@ function SortableGridItem({
         </span>
       )}
 
-      {/* Delete button */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-destructive"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
+      {/* Delete button (hidden in select mode) */}
+      {!selectMode && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-destructive"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 }
@@ -116,11 +148,17 @@ function SortableListItem({
   index,
   onRemove,
   onCropClick,
+  selectMode,
+  isSelected,
+  onToggleSelect,
 }: {
   image: CarouselImage;
   index: number;
   onRemove: () => void;
   onCropClick: () => void;
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const {
     attributes,
@@ -142,21 +180,33 @@ function SortableListItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-3 rounded-lg border bg-muted/40 p-2"
+      className={`flex items-center gap-3 rounded-lg border p-2 ${selectMode && isSelected ? "border-primary bg-primary/10" : "bg-muted/40"}`}
+      onClick={selectMode ? onToggleSelect : undefined}
     >
-      {/* Drag grip */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="flex shrink-0 cursor-grab touch-none items-center text-muted-foreground active:cursor-grabbing"
-      >
-        <GripVertical className="h-5 w-5" />
-      </div>
+      {/* Drag grip (hidden in select mode) */}
+      {!selectMode && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex shrink-0 cursor-grab touch-none items-center text-muted-foreground active:cursor-grabbing"
+        >
+          <GripVertical className="h-5 w-5" />
+        </div>
+      )}
+
+      {/* Selection checkbox */}
+      {selectMode && (
+        <div className="flex shrink-0 items-center">
+          <CheckCircle2
+            className={`h-5 w-5 ${isSelected ? "text-primary" : "text-muted-foreground/40"}`}
+          />
+        </div>
+      )}
 
       {/* Image preview */}
       <div
         className="relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-md"
-        onClick={onCropClick}
+        onClick={selectMode ? undefined : onCropClick}
       >
         <Image
           src={image.preview}
@@ -181,17 +231,19 @@ function SortableListItem({
         )}
       </div>
 
-      {/* Delete */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
+      {/* Delete (hidden in select mode) */}
+      {!selectMode && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }
@@ -258,6 +310,33 @@ function ImageManagerContent({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isCropping = cropTargetIndex !== null && pendingCropSrc !== null;
+
+  /* Select mode */
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleBulkDelete = useCallback(() => {
+    setLocalImages((prev) => {
+      const removed = prev.filter((img) => selectedIds.has(img.id));
+      removed.forEach((img) => {
+        if (img.preview.startsWith("blob:")) {
+          removedBlobUrls.current.add(img.preview);
+        }
+      });
+      return prev.filter((img) => !selectedIds.has(img.id));
+    });
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, [selectedIds]);
 
   const isMobile = useIsMobile();
 
@@ -416,10 +495,40 @@ function ImageManagerContent({
   /*  Grid view  */
   return (
     <>
-      <div className="flex flex-col space-y-1.5 sm:text-left">
-        <h2 className="text-lg font-semibold leading-none tracking-tight">
-          Manage Photos
-        </h2>
+      <div className="flex items-center justify-between sm:text-left">
+        <div className="flex flex-col space-y-1.5">
+          <h2 className="text-lg font-semibold leading-none tracking-tight">
+            Manage Photos
+          </h2>
+        </div>
+        {localImages.length > 0 && (
+          <div className="flex items-center gap-2">
+            {selectMode && selectedIds.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                className="gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete {selectedIds.size} Image
+                {selectedIds.size !== 1 ? "s" : ""}
+              </Button>
+            )}
+            <Button
+              variant={selectMode ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => {
+                setSelectMode((prev) => !prev);
+                setSelectedIds(new Set());
+              }}
+              className="gap-1.5"
+            >
+              <MousePointerClick className="h-3.5 w-3.5" />
+              {selectMode ? "Cancel" : "Select"}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="max-h-[60vh] overflow-y-auto py-2">
@@ -445,6 +554,9 @@ function ImageManagerContent({
                       index={i}
                       onRemove={() => handleRemove(i)}
                       onCropClick={() => openCropFor(i)}
+                      selectMode={selectMode}
+                      isSelected={selectedIds.has(img.id)}
+                      onToggleSelect={() => toggleSelect(img.id)}
                     />
                   ))}
                   {localImages.length < maxImages && (
@@ -472,6 +584,9 @@ function ImageManagerContent({
                       index={i}
                       onRemove={() => handleRemove(i)}
                       onCropClick={() => openCropFor(i)}
+                      selectMode={selectMode}
+                      isSelected={selectedIds.has(img.id)}
+                      onToggleSelect={() => toggleSelect(img.id)}
                     />
                   ))}
                   {localImages.length < maxImages && (
@@ -507,9 +622,21 @@ function ImageManagerContent({
           </label>
         )}
       </div>
-      <p className="flex justify-center text-sm text-muted-foreground">
-        {localImages.length}/{maxImages} photos &middot; Drag to reorder
-        &middot; Click a photo to crop
+      <p className="flex flex-col justify-center items-center text-sm text-muted-foreground mb-2">
+        {selectMode ? (
+          `${selectedIds.size} of ${localImages.length} selected`
+        ) : isMobile ? (
+          <>
+            <span>
+              {localImages.length}/{maxImages} photos
+            </span>
+            <span className="ml-1">
+              Drag to reorder · Click a photo to crop
+            </span>
+          </>
+        ) : (
+          `${localImages.length}/${maxImages} photos · Drag to reorder · Click a photo to crop`
+        )}
       </p>
 
       <div className="mt-auto flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { EventFormData } from "./shared/types";
 import type { SectionData, FAQSectionData } from "./sections";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 
 interface ChecklistItem {
   id: string;
@@ -90,6 +91,7 @@ export function EventChecklist({
   onDismissChange,
   isDark,
 }: EventChecklistProps) {
+  const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
 
   const effectiveForm = useMemo(
@@ -248,7 +250,12 @@ export function EventChecklist({
                     </span>
                     <button
                       onClick={() => undismiss(item.id)}
-                      className="opacity-0 transition-opacity group-hover:opacity-100"
+                      className={cn(
+                        "transition-opacity ",
+                        isMobile
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-100",
+                      )}
                       title="Undo dismiss"
                     >
                       <Undo2 className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
@@ -291,7 +298,12 @@ export function EventChecklist({
                       e.stopPropagation();
                       dismiss(item.id);
                     }}
-                    className="opacity-0 transition-opacity group-hover:opacity-100"
+                    className={cn(
+                      "transition-opacity ",
+                      isMobile
+                        ? "opacity-100"
+                        : "opacity-0 group-hover:opacity-100",
+                    )}
                     title="Dismiss"
                   >
                     <XCircle className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-destructive" />

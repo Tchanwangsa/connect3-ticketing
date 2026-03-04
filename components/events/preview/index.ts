@@ -10,5 +10,6 @@ export { FAQCard } from "./FAQCard";
 export { WhatToBringCard } from "./WhatToBringCard";
 export { PanelistsCard } from "./PanelistsCard";
 export { CompaniesCard } from "./CompaniesCard";
+export { RefundPolicyCard } from "./RefundPolicyCard";
 export { PricingDisplay } from "./PricingDisplay";
 export { SectionWrapper } from "./SectionWrapper";

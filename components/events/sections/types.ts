@@ -5,6 +5,7 @@ export const SECTION_TYPES = [
   "what-to-bring",
   "panelists",
   "companies",
+  "refund-policy",
 ] as const;
 
 export type SectionType = (typeof SECTION_TYPES)[number];
@@ -45,11 +46,17 @@ export interface CompaniesSectionData {
   items: Company[];
 }
 
+export interface RefundPolicySectionData {
+  type: "refund-policy";
+  text: string;
+}
+
 export type SectionData =
   | FAQSectionData
   | WhatToBringSectionData
   | PanelistsSectionData
-  | CompaniesSectionData;
+  | CompaniesSectionData
+  | RefundPolicySectionData;
 
 export const SECTION_META: Record<
   SectionType,
@@ -75,6 +82,11 @@ export const SECTION_META: Record<
     description: "Sponsors or participating companies",
     icon: "Building2",
   },
+  "refund-policy": {
+    label: "Refund Policy",
+    description: "Describe your refund policy",
+    icon: "ReceiptText",
+  },
 };
 
 /** Create a blank section for a given type */
@@ -91,6 +103,8 @@ export function createBlankSection(type: SectionType): SectionData {
       };
     case "companies":
       return { type: "companies", items: [{ name: "", logoUrl: "" }] };
+    case "refund-policy":
+      return { type: "refund-policy", text: "" };
   }
 }
 

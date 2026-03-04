@@ -401,14 +401,6 @@ export default function EventForm({
               )}
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="hidden sm:inline-flex"
-              onClick={() => router.back()}
-            >
-              Cancel
-            </Button>
-            <Button
               size="sm"
               className="shrink-0"
               onClick={handleSave}
