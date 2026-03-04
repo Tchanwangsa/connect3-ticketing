@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ResponsivePopover } from "@/components/ui/responsive-popover";
 import { Check, Plus } from "lucide-react";
 import { TagPill } from "../shared/EventPills";
 import type { EditInputProps } from "../shared/types";
@@ -52,34 +48,37 @@ export function TagsPicker({ value, onChange }: TagsPickerProps) {
       ))}
 
       {/* Add tag button */}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+      <ResponsivePopover
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
           <button
             type="button"
             className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <Plus className="h-4 w-4" />
           </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-44 p-1" align="start">
-          <div className="max-h-52 overflow-y-auto">
-            {AVAILABLE_TAGS.map((tag) => {
-              const selected = value.includes(tag);
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => toggleTag(tag)}
-                  className="flex w-full items-center justify-between rounded-sm px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                >
-                  {tag}
-                  {selected && <Check className="h-3.5 w-3.5 text-primary" />}
-                </button>
-              );
-            })}
-          </div>
-        </PopoverContent>
-      </Popover>
+        }
+        contentClassName="w-44 p-1"
+        align="start"
+      >
+        <div className="overflow-y-auto md:max-h-52">
+          {AVAILABLE_TAGS.map((tag) => {
+            const selected = value.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className="flex w-full items-center justify-between rounded-sm px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+              >
+                {tag}
+                {selected && <Check className="h-3.5 w-3.5 text-primary" />}
+              </button>
+            );
+          })}
+        </div>
+      </ResponsivePopover>
     </div>
   );
 }

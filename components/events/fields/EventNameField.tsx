@@ -18,7 +18,12 @@ export function EventNameField({
 }: EventNameFieldProps) {
   if (mode === "preview") {
     return (
-      <h1 className={cn("text-4xl font-bold tracking-tight", className)}>
+      <h1
+        className={cn(
+          "text-2xl font-bold tracking-tight sm:text-4xl",
+          className,
+        )}
+      >
         {value || "Untitled Event"}
       </h1>
     );
@@ -30,7 +35,7 @@ export function EventNameField({
       value={value}
       onChange={(e) => onChange?.(e.target.value)}
       className={cn(
-        "h-auto border-0 bg-transparent px-0 text-4xl! font-bold tracking-tight placeholder:text-muted-foreground/40 focus-visible:ring-0",
+        "h-auto border-0 bg-transparent px-0 text-2xl! font-bold tracking-tight placeholder:text-muted-foreground/40 focus-visible:ring-0 sm:text-4xl!",
         className,
       )}
     />

@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ResponsivePopover } from "@/components/ui/responsive-popover";
 import { Check } from "lucide-react";
 import type { EditInputProps } from "../shared/types";
 
@@ -27,8 +23,10 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <ResponsivePopover
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
         <button
           type="button"
           className={`inline-flex items-center rounded-full border px-3 py-1 text-sm transition-colors hover:bg-muted ${
@@ -39,23 +37,26 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
         >
           {value || "Select Category"}
         </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-44 p-1" align="start">
-        {EVENT_CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => {
-              onChange(cat);
-              setOpen(false);
-            }}
-            className="flex w-full items-center justify-between rounded-sm px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-          >
-            {cat}
-            {value === cat && <Check className="h-3.5 w-3.5 text-primary" />}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
+      }
+      contentClassName="w-44 p-1"
+      align="start"
+    >
+      <div className="overflow-y-auto md:max-h-none">
+      {EVENT_CATEGORIES.map((cat) => (
+        <button
+          key={cat}
+          type="button"
+          onClick={() => {
+            onChange(cat);
+            setOpen(false);
+          }}
+          className="flex w-full items-center justify-between rounded-sm px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+        >
+          {cat}
+          {value === cat && <Check className="h-3.5 w-3.5 text-primary" />}
+        </button>
+      ))}
+      </div>
+    </ResponsivePopover>
   );
 }

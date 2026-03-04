@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ResponsivePopover } from "@/components/ui/responsive-popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { PlusCircle, Search, Loader2, X, UserPlus } from "lucide-react";
@@ -33,6 +29,7 @@ export function HostsPicker({
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const fetchingRef = useRef(false);
 
   // Debounce search
   useEffect(() => {
@@ -48,6 +45,8 @@ export function HostsPicker({
   // Fetch clubs
   const fetchClubs = useCallback(
     async (pageNum: number, searchTerm: string) => {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
       setLoading(true);
       try {
         const params = new URLSearchParams({
@@ -55,11 +54,11 @@ export function HostsPicker({
           select: "id,first_name,avatar_url",
           filter: JSON.stringify({ account_type: "organisation" }),
           limit: String(PAGE_SIZE),
+          offset: String(pageNum * PAGE_SIZE),
         });
         if (searchTerm) {
           params.set("search", searchTerm);
         }
-        params.set("limit", String(PAGE_SIZE));
 
         const res = await fetch(`/api/profiles/fetch?${params}`);
         if (!res.ok) return;
@@ -79,6 +78,7 @@ export function HostsPicker({
         console.error("Failed to fetch clubs:", err);
       } finally {
         setLoading(false);
+        fetchingRef.current = false;
       }
     },
     [],
@@ -91,7 +91,7 @@ export function HostsPicker({
   }, [open, page, debouncedSearch, fetchClubs]);
 
   const handleScroll = () => {
-    if (!listRef.current || loading || !hasMore) return;
+    if (!listRef.current || fetchingRef.current || !hasMore) return;
     const { scrollTop, scrollHeight, clientHeight } = listRef.current;
     if (scrollHeight - scrollTop - clientHeight < 40) {
       setPage((p) => p + 1);
@@ -130,12 +130,12 @@ export function HostsPicker({
       <HostAvatarStack creator={creatorProfile} hosts={selectedHostsData} />
 
       {/* Label */}
-      <span className="text-sm font-medium text-foreground">
+      <span className="text-sm font-medium text-foreground truncate max-w-45 sm:max-w-none">
         {displayLabel}
       </span>
 
       {/* Add button */}
-      <Popover
+      <ResponsivePopover
         open={open}
         onOpenChange={(isOpen) => {
           setOpen(isOpen);
@@ -146,37 +146,75 @@ export function HostsPicker({
             setPage(0);
           }
         }}
-      >
-        <PopoverTrigger asChild>
+        trigger={
           <button
             type="button"
             className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <PlusCircle className="h-4 w-4" />
           </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-0" align="start">
-          {/* Search */}
-          <div className="flex items-center gap-2 border-b px-3 py-2">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search clubs..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              autoFocus
-              onKeyDown={(e) => e.stopPropagation()}
-            />
+        }
+        contentClassName="w-64 p-0"
+        align="start"
+      >
+        {/* Search */}
+        <div className="flex items-center gap-2 border-b px-3 py-2">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search clubs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            autoFocus
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        </div>
+
+        <div
+          ref={listRef}
+          onScroll={handleScroll}
+          className="max-h-[50vh] overflow-y-auto py-1 md:max-h-52"
+        >
+          {/* Creator pinned at very top */}
+          <div className="flex w-full items-center gap-2 px-3 py-1.5 text-sm opacity-60">
+            <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground">
+              <svg width="10" height="10" viewBox="0 0 10 10">
+                <path
+                  d="M2 5l2 2 4-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </div>
+            <Avatar className="h-5 w-5">
+              {creatorProfile.avatar_url && (
+                <AvatarImage
+                  src={creatorProfile.avatar_url}
+                  alt={creatorProfile.first_name}
+                />
+              )}
+              <AvatarFallback className="text-[9px]">
+                {creatorProfile.first_name.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="truncate font-medium">
+              {creatorProfile.first_name}
+            </span>
+            <span className="ml-auto text-[10px] text-muted-foreground">
+              You
+            </span>
           </div>
 
-          <div
-            ref={listRef}
-            onScroll={handleScroll}
-            className="max-h-52 overflow-y-auto py-1"
-          >
-            {/* Creator pinned at very top */}
-            <div className="flex w-full items-center gap-2 px-3 py-1.5 text-sm opacity-60">
+          {/* Selected additional clubs */}
+          {selectedHostsData.map((club) => (
+            <button
+              key={`sel-${club.id}`}
+              type="button"
+              onClick={() => toggleClub(club)}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+            >
               <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground">
                 <svg width="10" height="10" viewBox="0 0 10 10">
                   <path
@@ -188,42 +226,81 @@ export function HostsPicker({
                 </svg>
               </div>
               <Avatar className="h-5 w-5">
-                {creatorProfile.avatar_url && (
-                  <AvatarImage
-                    src={creatorProfile.avatar_url}
-                    alt={creatorProfile.first_name}
-                  />
+                {club.avatar_url && (
+                  <AvatarImage src={club.avatar_url} alt={club.first_name} />
                 )}
                 <AvatarFallback className="text-[9px]">
-                  {creatorProfile.first_name.charAt(0).toUpperCase()}
+                  {club.first_name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="truncate font-medium">
-                {creatorProfile.first_name}
-              </span>
-              <span className="ml-auto text-[10px] text-muted-foreground">
-                You
-              </span>
-            </div>
+              <span className="truncate font-medium">{club.first_name}</span>
+            </button>
+          ))}
+          {/* Custom host creation — when search has text and no exact match */}
+          {search.trim().length > 0 &&
+            !loading &&
+            (() => {
+              const trimmed = search.trim();
+              const alreadyExists =
+                clubs.some(
+                  (c) => c.first_name.toLowerCase() === trimmed.toLowerCase(),
+                ) ||
+                selectedHostsData.some(
+                  (c) => c.first_name.toLowerCase() === trimmed.toLowerCase(),
+                ) ||
+                creatorProfile.first_name.toLowerCase() ===
+                  trimmed.toLowerCase();
+              if (alreadyExists) return null;
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const customClub: ClubProfile = {
+                        id: `custom-${Date.now()}`,
+                        first_name: trimmed,
+                        avatar_url: null,
+                      };
+                      onChange({
+                        ids: [...selectedHosts, customClub.id],
+                        data: [...selectedHostsData, customClub],
+                      });
+                      setSearch("");
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                  >
+                    <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">
+                      Add &ldquo;
+                      <span className="font-medium">{trimmed}</span>&rdquo; as
+                      host
+                    </span>
+                  </button>
+                </>
+              );
+            })()}
 
-            {/* Selected additional clubs */}
-            {selectedHostsData.map((club) => (
+          {(selectedHostsData.length > 0 || true) &&
+            clubs.some(
+              (c) =>
+                !selectedHosts.includes(c.id) && c.id !== creatorProfile.id,
+            ) && <Separator className="my-1" />}
+
+          {/* Unselected clubs (excluding creator) */}
+          {clubs
+            .filter(
+              (club) =>
+                !selectedHosts.includes(club.id) &&
+                club.id !== creatorProfile.id,
+            )
+            .map((club) => (
               <button
-                key={`sel-${club.id}`}
+                key={club.id}
                 type="button"
                 onClick={() => toggleClub(club)}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
               >
-                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground">
-                  <svg width="10" height="10" viewBox="0 0 10 10">
-                    <path
-                      d="M2 5l2 2 4-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    />
-                  </svg>
-                </div>
+                <div className="h-4 w-4 shrink-0 rounded-sm border border-muted-foreground/30" />
                 <Avatar className="h-5 w-5">
                   {club.avatar_url && (
                     <AvatarImage src={club.avatar_url} alt={club.first_name} />
@@ -232,117 +309,37 @@ export function HostsPicker({
                     {club.first_name.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <span className="truncate font-medium">{club.first_name}</span>
+                <span className="truncate">{club.first_name}</span>
               </button>
             ))}
-            {/* Custom host creation — when search has text and no exact match */}
-            {search.trim().length > 0 &&
-              !loading &&
-              (() => {
-                const trimmed = search.trim();
-                const alreadyExists =
-                  clubs.some(
-                    (c) => c.first_name.toLowerCase() === trimmed.toLowerCase(),
-                  ) ||
-                  selectedHostsData.some(
-                    (c) => c.first_name.toLowerCase() === trimmed.toLowerCase(),
-                  ) ||
-                  creatorProfile.first_name.toLowerCase() ===
-                    trimmed.toLowerCase();
-                if (alreadyExists) return null;
-                return (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const customClub: ClubProfile = {
-                          id: `custom-${Date.now()}`,
-                          first_name: trimmed,
-                          avatar_url: null,
-                        };
-                        onChange({
-                          ids: [...selectedHosts, customClub.id],
-                          data: [...selectedHostsData, customClub],
-                        });
-                        setSearch("");
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                    >
-                      <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate">
-                        Add &ldquo;
-                        <span className="font-medium">{trimmed}</span>&rdquo; as
-                        host
-                      </span>
-                    </button>
-                  </>
-                );
-              })()}
 
-            {(selectedHostsData.length > 0 || true) &&
-              clubs.some(
-                (c) =>
-                  !selectedHosts.includes(c.id) && c.id !== creatorProfile.id,
-              ) && <Separator className="my-1" />}
-
-            {/* Unselected clubs (excluding creator) */}
-            {clubs
-              .filter(
-                (club) =>
-                  !selectedHosts.includes(club.id) &&
-                  club.id !== creatorProfile.id,
-              )
-              .map((club) => (
-                <button
-                  key={club.id}
-                  type="button"
-                  onClick={() => toggleClub(club)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                >
-                  <div className="h-4 w-4 shrink-0 rounded-sm border border-muted-foreground/30" />
-                  <Avatar className="h-5 w-5">
-                    {club.avatar_url && (
-                      <AvatarImage
-                        src={club.avatar_url}
-                        alt={club.first_name}
-                      />
-                    )}
-                    <AvatarFallback className="text-[9px]">
-                      {club.first_name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="truncate">{club.first_name}</span>
-                </button>
-              ))}
-
-            {loading && (
-              <div className="flex items-center justify-center py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            )}
-
-            {!loading && clubs.length === 0 && !search && (
-              <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                No clubs found
-              </div>
-            )}
-          </div>
-
-          {selectedHosts.length > 0 && (
-            <>
-              <Separator />
-              <button
-                type="button"
-                onClick={clearAll}
-                className="flex w-full items-center justify-center gap-1 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-                Clear All
-              </button>
-            </>
+          {loading && (
+            <div className="flex items-center justify-center py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
           )}
-        </PopoverContent>
-      </Popover>
+
+          {!loading && clubs.length === 0 && !search && (
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              No clubs found
+            </div>
+          )}
+        </div>
+
+        {selectedHosts.length > 0 && (
+          <>
+            <Separator />
+            <button
+              type="button"
+              onClick={clearAll}
+              className="flex w-full items-center justify-center gap-1 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+              Clear All
+            </button>
+          </>
+        )}
+      </ResponsivePopover>
     </div>
   );
 }

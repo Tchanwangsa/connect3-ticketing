@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const filterParam = searchParams.get("filter");
     const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const offset = parseInt(searchParams.get("offset") || "0", 10);
 
     // Validate table name
     if (!ALLOWED_TABLES.has(table)) {
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
         .from(table)
         .select(select)
         .ilike("first_name", `%${search}%`)
-        .limit(limit);
+        .range(offset, offset + limit - 1);
 
       // Apply extra equality filters
       for (const [key, value] of Object.entries(filters)) {
@@ -132,7 +133,10 @@ export async function GET(request: NextRequest) {
 
     // --- List mode (filters only, no search term) ---
     if (Object.keys(filters).length > 0) {
-      let query = supabase.from(table).select(select).limit(limit);
+      let query = supabase
+        .from(table)
+        .select(select)
+        .range(offset, offset + limit - 1);
       for (const [key, val] of Object.entries(filters)) {
         query = query.eq(key, val);
       }

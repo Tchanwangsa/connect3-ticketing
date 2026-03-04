@@ -154,7 +154,7 @@ export function EventChecklist({
   );
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-72">
+    <div className="fixed bottom-3 right-3 z-50 w-[calc(100vw-1.5rem)] max-w-72 sm:bottom-6 sm:right-6 sm:w-72">
       {collapsed ? (
         <button
           onClick={() => setCollapsed(false)}

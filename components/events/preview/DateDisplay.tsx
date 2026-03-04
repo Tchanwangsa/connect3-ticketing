@@ -1,50 +1,62 @@
 import { CalendarDays } from "lucide-react";
 import type { DateTimeData, PreviewInputProps } from "../shared/types";
 
-function formatDisplayDate(date: string, time: string): string {
+/** Compact format: 12/03 12:00 PM */
+function formatCompactDate(date: string, time: string): string {
   if (!date) return "";
   const d = new Date(`${date}T${time || "00:00"}`);
-  const opts: Intl.DateTimeFormatOptions = {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  };
-  let str = d.toLocaleDateString("en-AU", opts);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  let str = `${dd}/${mm}`;
   if (time) {
-    str += ` · ${d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" })}`;
+    str += ` ${d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase()}`;
   }
   return str;
 }
 
+function getTzAbbrev(timezone: string): string {
+  if (!timezone) return "";
+  try {
+    const parts = new Date()
+      .toLocaleString("en-AU", { timeZone: timezone, timeZoneName: "short" })
+      .split(/\s/);
+    return parts[parts.length - 1] ?? "";
+  } catch {
+    return "";
+  }
+}
+
 type DateDisplayProps = PreviewInputProps<DateTimeData>;
 
-/** Read-only date/time display with calendar icon and timezone badge. */
+/** Read-only date/time display with calendar icon. */
 export function DateDisplay({ value }: DateDisplayProps) {
   const hasStart = !!value.startDate;
   const hasEnd = !!value.endDate;
 
   let displayText = "TBA";
   if (hasStart) {
-    displayText = formatDisplayDate(value.startDate, value.startTime);
+    displayText = formatCompactDate(value.startDate, value.startTime);
     if (hasEnd) {
-      displayText += `  →  ${formatDisplayDate(value.endDate, value.endTime)}`;
+      displayText += `  →  ${formatCompactDate(value.endDate, value.endTime)}`;
     }
   }
 
-  const tzShort = value.timezone
-    ? (value.timezone.split("/").pop()?.replace(/_/g, " ") ?? "")
-    : "";
+  const tzAbbrev = hasStart ? getTzAbbrev(value.timezone) : "";
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 items-center gap-x-3 gap-y-1">
       <CalendarDays className="h-5 w-5 shrink-0 text-muted-foreground" />
       <span
-        className={`text-base ${hasStart ? "font-medium text-foreground" : "text-muted-foreground"}`}
+        className={`truncate text-sm sm:text-base ${
+          hasStart ? "font-medium text-foreground" : "text-muted-foreground"
+        }`}
       >
         {displayText}
       </span>
-      {hasStart && tzShort && (
-        <span className="text-xs text-muted-foreground">{tzShort}</span>
+      {tzAbbrev && (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {tzAbbrev}
+        </span>
       )}
     </div>
   );

@@ -1,13 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -107,12 +101,12 @@ export function ThemeDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Page Theme</DialogTitle>
-        </DialogHeader>
-
+    <ResponsiveModal
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Page Theme"
+      className="sm:max-w-lg"
+    >
         <div className="space-y-6 py-2">
           {/* ── Color Mode ── */}
           <div className="space-y-2">
@@ -473,7 +467,7 @@ export function ThemeDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <div className="mt-auto flex justify-end gap-2 border-t pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -487,9 +481,8 @@ export function ThemeDialog({
           <Button size="sm" onClick={() => onOpenChange(false)}>
             Apply Theme
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+    </ResponsiveModal>
   );
 }
 

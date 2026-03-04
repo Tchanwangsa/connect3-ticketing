@@ -54,7 +54,15 @@ import {
   type DragHandleProps,
 } from "./sections";
 import { useAuthStore } from "@/stores/authStore";
-import { ArrowLeft, Eye, Loader2, Palette, Pencil } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Loader2,
+  Palette,
+  Pencil,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -190,6 +198,7 @@ export default function EventForm({
   );
   const [managerOpen, setManagerOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
   const [theme, setTheme] = useState<EventTheme>(
     initialData?.theme ?? { ...DEFAULT_THEME },
   );
@@ -344,20 +353,26 @@ export default function EventForm({
           isDark
             ? "border-neutral-700/60 bg-neutral-900/60 text-neutral-100 backdrop-blur-xl"
             : "bg-background/95 backdrop-blur",
+          toolbarCollapsed && "border-b-0! shadow-none!",
         )}
       >
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-6">
+        <div
+          className={cn(
+            "mx-auto flex max-w-4xl items-center justify-between gap-2 px-3 sm:px-6 transition-all overflow-hidden",
+            toolbarCollapsed ? "h-0" : "h-14",
+          )}
+        >
           <Button
             variant="ghost"
             size="sm"
-            className="gap-2"
+            className="gap-2 shrink-0"
             onClick={() => router.back()}
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -365,7 +380,7 @@ export default function EventForm({
               onClick={() => setThemeOpen(true)}
             >
               <Palette className="h-3.5 w-3.5" />
-              Theme
+              <span className="hidden sm:inline">Theme</span>
             </Button>
             <Button
               variant="outline"
@@ -376,34 +391,63 @@ export default function EventForm({
               {previewMode ? (
                 <>
                   <Pencil className="h-3.5 w-3.5" />
-                  Edit
+                  <span className="hidden sm:inline">Edit</span>
                 </>
               ) : (
                 <>
                   <Eye className="h-3.5 w-3.5" />
-                  Preview
+                  <span className="hidden sm:inline">Preview</span>
                 </>
               )}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex"
+              onClick={() => router.back()}
+            >
               Cancel
             </Button>
             <Button
               size="sm"
+              className="shrink-0"
               onClick={handleSave}
               disabled={saving || !form.name}
             >
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {mode === "create" ? "Create Event" : "Save Changes"}
+              <span className="hidden sm:inline">
+                {mode === "create" ? "Create Event" : "Save Changes"}
+              </span>
+              <span className="sm:hidden">
+                {mode === "create" ? "Create" : "Save"}
+              </span>
             </Button>
           </div>
         </div>
+
+        {/* Collapse / expand toggle */}
+        <button
+          type="button"
+          onClick={() => setToolbarCollapsed((c) => !c)}
+          className={cn(
+            "absolute -bottom-6 right-4 z-50 flex h-6 w-8 items-center justify-center rounded-b-md border border-t-0 shadow-sm transition-colors",
+            isDark
+              ? "border-neutral-700/60 bg-neutral-900/80 text-neutral-300 hover:text-neutral-100"
+              : "border-border/60 bg-background/95 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {toolbarCollapsed ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronUp className="h-3.5 w-3.5" />
+          )}
+        </button>
       </div>
 
       {/* ── Full-width accent gradient overlay ── */}
       <div style={accentGradient ? { background: accentGradient } : undefined}>
         {/* ── Single unified layout ── */}
-        <div className={cn("mx-auto max-w-4xl px-6 py-8", pageTextClass)}>
+        <div className={cn("mx-auto max-w-4xl px-3 py-6 sm:px-6 sm:py-8", pageTextClass)}>
           {/* Hero Section */}
           <div className="space-y-6">
             <div ref={thumbnailRef} className="relative w-full">
