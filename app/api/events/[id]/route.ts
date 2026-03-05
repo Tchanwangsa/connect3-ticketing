@@ -313,12 +313,10 @@ export async function PUT(
         sort_order: i,
         status: "confirmed",
       }));
-      await supabaseAdmin
-        .from("event_hosts")
-        .upsert(rows, {
-          onConflict: "event_id,profile_id",
-          ignoreDuplicates: true,
-        });
+      await supabaseAdmin.from("event_hosts").upsert(rows, {
+        onConflict: "event_id,profile_id",
+        ignoreDuplicates: true,
+      });
     }
 
     /* ── Replace ticket tiers ── */
@@ -376,6 +374,296 @@ export async function PUT(
     return NextResponse.json({ id: eventId, message: "Event updated" });
   } catch (error) {
     console.error("PUT /api/events/[id] error:", error);
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Internal server error",
+      },
+      { status: 500 },
+    );
+  }
+}
+
+/* ================================================================
+   PATCH /api/events/[id]
+   Field-level partial update.
+   Body: { fields: string[], ...partialPayload }
+   `fields` lists which field groups to update.
+   Valid groups: event, location, images, hosts, pricing, links, theme, sections
+   Only the listed groups are touched — everything else is left alone.
+================================================================ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: eventId } = await params;
+
+    /* ── Auth check ── */
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    /* ── Verify ownership or accepted collaborator ── */
+    const { data: existing } = await supabaseAdmin
+      .from("events")
+      .select("creator_profile_id, location_id")
+      .eq("id", eventId)
+      .single();
+
+    if (!existing) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
+    const isCreator = existing.creator_profile_id === user.id;
+    if (!isCreator) {
+      const { data: hostRow } = await supabaseAdmin
+        .from("event_hosts")
+        .select("status")
+        .eq("event_id", eventId)
+        .eq("profile_id", user.id)
+        .eq("status", "accepted")
+        .maybeSingle();
+      if (!hostRow) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    const body = await request.json();
+    const groups: string[] = body.fields ?? [];
+
+    if (groups.length === 0) {
+      return NextResponse.json({ id: eventId, message: "Nothing to update" });
+    }
+
+    const updatedGroups: string[] = [];
+
+    /* ── event (main row columns) ── */
+    if (groups.includes("event")) {
+      const payload: Record<string, unknown> = {};
+      if ("name" in body) payload.name = body.name ?? "";
+      if ("description" in body) payload.description = body.description || null;
+      if ("category" in body) payload.category = body.category || null;
+      if ("tags" in body) payload.tags = body.tags ?? [];
+      if ("isOnline" in body) payload.is_online = body.isOnline ?? false;
+      if ("timezone" in body) payload.timezone = body.timezone || null;
+      if ("startDate" in body || "startTime" in body) {
+        const sd = body.startDate;
+        const st = body.startTime;
+        payload.start = sd && st ? new Date(`${sd}T${st}`).toISOString() : null;
+      }
+      if ("endDate" in body || "endTime" in body) {
+        const ed = body.endDate;
+        const et = body.endTime;
+        payload.end = ed && et ? new Date(`${ed}T${et}`).toISOString() : null;
+      }
+      if ("status" in body) {
+        payload.status = body.status;
+        if (body.status === "published") {
+          payload.published_at = new Date().toISOString();
+        }
+      }
+      if (Object.keys(payload).length > 0) {
+        const { error } = await supabaseAdmin
+          .from("events")
+          .update(payload)
+          .eq("id", eventId);
+        if (error) throw new Error(`Event update failed: ${error.message}`);
+        updatedGroups.push("event");
+      }
+    }
+
+    /* ── location ── */
+    if (groups.includes("location")) {
+      const location: LocationPayload | null = body.location ?? null;
+      const isOnline = body.isOnline ?? false;
+      let locationId: string | null = null;
+
+      if (location?.displayName && !isOnline) {
+        if (existing.location_id) {
+          const { error: locErr } = await supabaseAdmin
+            .from("event_locations")
+            .update({
+              venue: location.displayName,
+              address: location.address || null,
+              latitude: location.lat ?? null,
+              longitude: location.lon ?? null,
+            })
+            .eq("id", existing.location_id);
+          if (!locErr) locationId = existing.location_id;
+        }
+        if (!locationId) {
+          const { data: loc, error: locErr } = await supabaseAdmin
+            .from("event_locations")
+            .insert({
+              venue: location.displayName,
+              address: location.address || null,
+              latitude: location.lat ?? null,
+              longitude: location.lon ?? null,
+            })
+            .select("id")
+            .single();
+          if (locErr)
+            throw new Error(`Location insert failed: ${locErr.message}`);
+          locationId = loc.id;
+        }
+      }
+      await supabaseAdmin
+        .from("events")
+        .update({ location_id: locationId })
+        .eq("id", eventId);
+      updatedGroups.push("location");
+    }
+
+    /* ── images ── */
+    if (groups.includes("images")) {
+      const imageUrls: string[] = body.imageUrls ?? [];
+
+      /* Clean up removed images from storage */
+      const { data: oldImages } = await supabaseAdmin
+        .from("event_images")
+        .select("url")
+        .eq("event_id", eventId);
+      const oldUrls = (oldImages ?? []).map((i) => i.url);
+      const removedUrls = oldUrls.filter((u) => !imageUrls.includes(u));
+      for (const url of removedUrls) {
+        try {
+          const match = url.match(/\/media\/(.+)$/);
+          if (match) {
+            await supabaseAdmin.storage.from("media").remove([match[1]]);
+          }
+        } catch {
+          /* best effort */
+        }
+      }
+
+      await supabaseAdmin.from("event_images").delete().eq("event_id", eventId);
+      if (imageUrls.length > 0) {
+        const rows = imageUrls.map((url, i) => ({
+          event_id: eventId,
+          url,
+          sort_order: i,
+        }));
+        await supabaseAdmin.from("event_images").insert(rows);
+      }
+      /* Update thumbnail on event row */
+      await supabaseAdmin
+        .from("events")
+        .update({ thumbnail: imageUrls[0] ?? null })
+        .eq("id", eventId);
+      updatedGroups.push("images");
+    }
+
+    /* ── hosts ── */
+    if (groups.includes("hosts")) {
+      const hostIds: string[] = body.hostIds ?? [];
+      await supabaseAdmin
+        .from("event_hosts")
+        .delete()
+        .eq("event_id", eventId)
+        .eq("status", "confirmed");
+      const displayHostIds = hostIds.filter(
+        (hid) => hid !== existing.creator_profile_id,
+      );
+      if (displayHostIds.length > 0) {
+        const rows = displayHostIds.map((pid, i) => ({
+          event_id: eventId,
+          profile_id: pid,
+          sort_order: i,
+          status: "confirmed",
+        }));
+        await supabaseAdmin.from("event_hosts").upsert(rows, {
+          onConflict: "event_id,profile_id",
+          ignoreDuplicates: true,
+        });
+      }
+      updatedGroups.push("hosts");
+    }
+
+    /* ── pricing ── */
+    if (groups.includes("pricing")) {
+      const pricing: TicketTierPayload[] = body.pricing ?? [];
+      await supabaseAdmin
+        .from("event_ticket_tiers")
+        .delete()
+        .eq("event_id", eventId);
+      if (pricing.length > 0) {
+        const rows = pricing.map((t, i) => ({
+          event_id: eventId,
+          label: t.label,
+          price: t.price,
+          sort_order: i,
+        }));
+        await supabaseAdmin.from("event_ticket_tiers").insert(rows);
+      }
+      updatedGroups.push("pricing");
+    }
+
+    /* ── links ── */
+    if (groups.includes("links")) {
+      const linkItems: EventLinkPayload[] = body.links ?? [];
+      await supabaseAdmin.from("event_links").delete().eq("event_id", eventId);
+      if (linkItems.length > 0) {
+        const rows = linkItems.map((l, i) => ({
+          event_id: eventId,
+          url: l.url,
+          title: l.title || null,
+          sort_order: i,
+        }));
+        await supabaseAdmin.from("event_links").insert(rows);
+      }
+      updatedGroups.push("links");
+    }
+
+    /* ── theme ── */
+    if (groups.includes("theme")) {
+      const theme: ThemePayload | null = body.theme ?? null;
+      if (theme) {
+        await supabaseAdmin
+          .from("event_themes")
+          .delete()
+          .eq("event_id", eventId);
+        await supabaseAdmin.from("event_themes").insert({
+          event_id: eventId,
+          mode: theme.mode,
+          layout: theme.layout,
+          accent: theme.accent,
+          accent_custom: theme.accentCustom || null,
+          bg_color: theme.bgColor || null,
+        });
+      }
+      updatedGroups.push("theme");
+    }
+
+    /* ── sections ── */
+    if (groups.includes("sections")) {
+      const sectionItems: SectionPayload[] = body.sections ?? [];
+      await supabaseAdmin
+        .from("event_sections")
+        .delete()
+        .eq("event_id", eventId);
+      if (sectionItems.length > 0) {
+        const rows = sectionItems.map((s, i) => ({
+          event_id: eventId,
+          type: s.type,
+          data: s.data,
+          sort_order: i,
+        }));
+        await supabaseAdmin.from("event_sections").insert(rows);
+      }
+      updatedGroups.push("sections");
+    }
+
+    return NextResponse.json({
+      id: eventId,
+      updated: updatedGroups,
+      message: "Partial update complete",
+    });
+  } catch (error) {
+    console.error("PATCH /api/events/[id] error:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Internal server error",

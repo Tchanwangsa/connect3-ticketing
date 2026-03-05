@@ -64,7 +64,7 @@ export function AddSectionButton({
           <Button
             variant="outline"
             className={cn(
-              "w-full gap-2",
+              "w-full gap-2 mt-4",
               isDark &&
                 "border-neutral-600 text-neutral-300 hover:bg-neutral-700 hover:text-white",
             )}
