@@ -18,7 +18,10 @@ export function EventImageField({
   existingImages,
   onEditClick,
 }: EventImageFieldProps) {
-  const previewUrls = useMemo(() => images.map((i) => i.preview), [images]);
+  const previewUrls = useMemo(
+    () => images.filter((i) => i.url && !i.uploading).map((i) => i.url),
+    [images],
+  );
   const urls = previewUrls.length > 0 ? previewUrls : (existingImages ?? []);
 
   if (mode === "preview") {

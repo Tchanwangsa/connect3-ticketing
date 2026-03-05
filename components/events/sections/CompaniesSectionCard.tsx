@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { CompaniesSectionData, Company } from "./types";
-import { useRef, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { MediaLibraryDialog } from "@/components/media/MediaLibraryDialog";
 import {
   DndContext,
   closestCenter,
@@ -54,7 +55,7 @@ function SortableCompanyItem({
   canRemove,
   onUpdate,
   onRemove,
-  onLogoUpload,
+  onMediaPick,
   isDark,
 }: {
   id: string;
@@ -63,10 +64,9 @@ function SortableCompanyItem({
   canRemove: boolean;
   onUpdate: (index: number, partial: Partial<Company>) => void;
   onRemove: (index: number) => void;
-  onLogoUpload: (index: number, file: File) => void;
+  onMediaPick: (index: number) => void;
   isDark?: boolean;
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const {
     attributes,
     listeners,
@@ -103,10 +103,10 @@ function SortableCompanyItem({
         <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/40" />
       </button>
 
-      {/* Logo */}
+      {/* Logo — click opens media library */}
       <button
         type="button"
-        onClick={() => fileRef.current?.click()}
+        onClick={() => onMediaPick(index)}
         className="shrink-0"
       >
         <Avatar className="h-12 w-12 cursor-pointer rounded-lg transition-opacity hover:opacity-80">
@@ -128,16 +128,6 @@ function SortableCompanyItem({
             />
           </AvatarFallback>
         </Avatar>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onLogoUpload(index, f);
-          }}
-        />
       </button>
 
       <Input
@@ -172,6 +162,8 @@ export function CompaniesSectionCard({
   isDark,
 }: CompaniesSectionCardProps) {
   const [browseOpen, setBrowseOpen] = useState(false);
+  const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
+  const [mediaPickIndex, setMediaPickIndex] = useState<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -221,9 +213,16 @@ export function CompaniesSectionCard({
     onChange({ ...data, items: data.items.filter((_, i) => i !== index) });
   };
 
-  const handleLogoUpload = (index: number, file: File) => {
-    const url = URL.createObjectURL(file);
-    updateItem(index, { logoUrl: url });
+  const handleMediaPick = (index: number) => {
+    setMediaPickIndex(index);
+    setMediaLibraryOpen(true);
+  };
+
+  const handleMediaSelect = (urls: string[]) => {
+    if (urls.length > 0 && mediaPickIndex !== null) {
+      updateItem(mediaPickIndex, { logoUrl: urls[0] });
+    }
+    setMediaPickIndex(null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -251,7 +250,7 @@ export function CompaniesSectionCard({
               canRemove={data.items.length > 1}
               onUpdate={updateItem}
               onRemove={removeItem}
-              onLogoUpload={handleLogoUpload}
+              onMediaPick={handleMediaPick}
               isDark={isDark}
             />
           ))}
@@ -295,6 +294,14 @@ export function CompaniesSectionCard({
         existingCompanies={data.items}
         onAdd={addPresetCompanies}
         isDark={isDark}
+      />
+
+      {/* Media library dialog */}
+      <MediaLibraryDialog
+        open={mediaLibraryOpen}
+        onOpenChange={setMediaLibraryOpen}
+        defaultTab="companies"
+        onSelect={handleMediaSelect}
       />
     </div>
   );

@@ -60,9 +60,11 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  EyeOff,
   Loader2,
   Palette,
   Pencil,
+  Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createEvent } from "@/lib/api/createEvent";
@@ -100,6 +102,8 @@ interface EventFormProps {
   eventId?: string;
   /** Form mode */
   mode?: "create" | "edit";
+  /** Current event status (edit mode) */
+  initialStatus?: "draft" | "published" | "archived";
   /** Called on form submit */
   onSubmit?: (data: EventFormData) => Promise<void>;
 }
@@ -148,10 +152,17 @@ export default function EventForm({
   initialSections,
   eventId,
   mode = "create",
+  initialStatus = "draft",
 }: EventFormProps) {
   const router = useRouter();
   const profile = useAuthStore((s) => s.profile);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(mode === "edit");
+  const [eventStatus, setEventStatus] = useState<
+    "draft" | "published" | "archived"
+  >(initialStatus);
+  const pendingAutoSave = useRef(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
@@ -192,7 +203,7 @@ export default function EventForm({
     category: initialData?.category ?? "",
     tags: initialData?.tags ?? [],
     hostIds: initialData?.hostIds ?? [],
-    imageFiles: initialData?.imageFiles ?? [],
+    imageUrls: initialData?.imageUrls ?? [],
     pricing: initialData?.pricing ?? [],
     links: initialData?.links ?? [],
     theme: initialData?.theme ?? { ...DEFAULT_THEME },
@@ -214,8 +225,7 @@ export default function EventForm({
       initialCarouselImages ??
       (existingImages ?? []).map((url, i) => ({
         id: `existing-${i}`,
-        file: null,
-        preview: url,
+        url,
       })),
   );
   const [managerOpen, setManagerOpen] = useState(false);
@@ -225,10 +235,22 @@ export default function EventForm({
     initialData?.theme ?? { ...DEFAULT_THEME },
   );
 
-  /* Sync form.imageFiles whenever carouselImages changes */
+  /* Sync form.imageUrls whenever carouselImages changes */
   useEffect(() => {
-    const files = carouselImages.filter((i) => i.file).map((i) => i.file!);
-    setForm((prev) => ({ ...prev, imageFiles: files }));
+    const urls = carouselImages
+      .filter((i) => i.url && !i.uploading)
+      .map((i) => i.url);
+    setForm((prev) => ({ ...prev, imageUrls: urls }));
+
+    /* Auto-save draft after images have been confirmed */
+    if (pendingAutoSave.current && urls.length > 0) {
+      pendingAutoSave.current = false;
+      // Use a microtask so the form state update settles first
+      queueMicrotask(() => {
+        autoSaveDraft();
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carouselImages]);
 
   /* Sync form.theme whenever theme changes */
@@ -254,6 +276,10 @@ export default function EventForm({
 
   const handleManagerConfirm = useCallback((updated: CarouselImage[]) => {
     setCarouselImages(updated);
+    /* If the user added images, auto-save so they're linked to the event row */
+    if (updated.some((img) => img.url && !img.uploading)) {
+      pendingAutoSave.current = true;
+    }
   }, []);
 
   /* ── Attention badge helpers ── */
@@ -297,30 +323,97 @@ export default function EventForm({
     value: EventFormData[K],
   ) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  /* ── Auto-save draft (silent, no loading spinner) ── */
+  const autoSaveDraft = useCallback(async () => {
+    try {
+      if (draftSaved) {
+        await updateEvent(eventId!, form, carouselImages, sections);
+      } else {
+        await createEvent(eventId!, form, carouselImages, sections, "draft");
+        setDraftSaved(true);
+      }
+      toast.success("Draft auto-saved", { duration: 2000 });
+    } catch (err) {
+      console.error("Auto-save failed:", err);
+      // Silent failure — user can still manually save
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, form, carouselImages, sections, draftSaved]);
+
+  /* ── Save (manual — persists current state, no status change) ── */
   const handleSave = async () => {
+    setSavingDraft(true);
+    try {
+      if (draftSaved) {
+        await updateEvent(eventId!, form, carouselImages, sections);
+      } else {
+        await createEvent(eventId!, form, carouselImages, sections, "draft");
+        setDraftSaved(true);
+        setEventStatus("draft");
+      }
+      toast.success("Saved!");
+    } catch (err) {
+      console.error("Failed to save:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  /* ── Publish ── */
+  const handlePublish = async () => {
     if (!form.category) {
-      toast.error("Please select a category before submitting.");
+      toast.error("Please select a category before publishing.");
+      return;
+    }
+    if (!form.name) {
+      toast.error("Please enter an event name before publishing.");
       return;
     }
     setSaving(true);
     try {
-      if (mode === "edit" && eventId) {
-        await updateEvent(eventId, form, carouselImages, sections);
-        toast.success("Event updated!");
-        router.push(`/events/${eventId}`);
+      if (draftSaved) {
+        await updateEvent(
+          eventId!,
+          form,
+          carouselImages,
+          sections,
+          "published",
+        );
       } else {
-        const newId = await createEvent(form, carouselImages, sections);
-        toast.success("Event created!");
-        router.push(`/events/${newId}`);
+        await createEvent(
+          eventId!,
+          form,
+          carouselImages,
+          sections,
+          "published",
+        );
+        setDraftSaved(true);
       }
+      setEventStatus("published");
+      toast.success("Event published!");
+      router.push(`/events/${eventId}`);
     } catch (err) {
-      console.error("Failed to save event:", err);
+      console.error("Failed to publish event:", err);
       toast.error(
-        err instanceof Error
-          ? err.message
-          : mode === "edit"
-            ? "Failed to update event"
-            : "Failed to create event",
+        err instanceof Error ? err.message : "Failed to publish event",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ── Unpublish (revert to draft) ── */
+  const handleUnpublish = async () => {
+    setSaving(true);
+    try {
+      await updateEvent(eventId!, form, carouselImages, sections, "draft");
+      setEventStatus("draft");
+      toast.success("Event unpublished — moved back to drafts.");
+    } catch (err) {
+      console.error("Failed to unpublish event:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to unpublish event",
       );
     } finally {
       setSaving(false);
@@ -435,19 +528,45 @@ export default function EventForm({
               )}
             </Button>
             <Button
+              variant="outline"
               size="sm"
-              className="shrink-0"
+              className="gap-1.5 shrink-0"
               onClick={handleSave}
-              disabled={saving || !form.name}
+              disabled={savingDraft || saving}
             >
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <span className="hidden sm:inline">
-                {mode === "create" ? "Create Event" : "Save Changes"}
-              </span>
-              <span className="sm:hidden">
-                {mode === "create" ? "Create" : "Save"}
-              </span>
+              {savingDraft ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline">Save</span>
             </Button>
+            {eventStatus === "published" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shrink-0"
+                onClick={handleUnpublish}
+                disabled={saving || savingDraft}
+              >
+                {saving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">Unpublish</span>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="shrink-0"
+                onClick={handlePublish}
+                disabled={saving || savingDraft || !form.name}
+              >
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <span>Publish</span>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -574,6 +693,12 @@ export default function EventForm({
                       updateField("hostIds", ids);
                       setHostsData(data);
                     }}
+                    eventId={eventId}
+                    eventSaved={draftSaved}
+                    onInvitesSent={() => {
+                      // Trigger auto-save after invites are sent
+                      pendingAutoSave.current = true;
+                    }}
                   />
                   <EventPricingField
                     mode={viewMode}
@@ -653,6 +778,7 @@ export default function EventForm({
         onOpenChange={setManagerOpen}
         images={carouselImages}
         onConfirm={handleManagerConfirm}
+        eventId={eventId!}
       />
 
       {/* Theme dialog */}

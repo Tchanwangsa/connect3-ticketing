@@ -64,11 +64,13 @@ export interface HostsValue {
   data: ClubProfile[];
 }
 
-/** An image in the event photo carousel. */
+/** An image in the event photo carousel — always a URL (uploaded on add/crop). */
 export interface CarouselImage {
   id: string;
-  file: File | null; // null for pre-existing server images
-  preview: string; // blob URL or server URL
+  /** Public URL of the uploaded image. */
+  url: string;
+  /** True while the image is being uploaded (shows skeleton). */
+  uploading?: boolean;
 }
 
 /* ── Event page theme ── */
@@ -228,7 +230,8 @@ export interface EventFormData {
   category: string;
   tags: string[];
   hostIds: string[];
-  imageFiles: File[];
+  /** URLs of carousel images (already uploaded to storage). */
+  imageUrls: string[];
   /** Ticket pricing tiers — empty array means "Free". */
   pricing: TicketTier[];
   /** External links (website, socials, etc.). */

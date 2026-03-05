@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { nanoid } from "nanoid";
-
-/* ── helpers ── */
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-
-function publicUrl(bucket: string, path: string) {
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
-}
-
-async function uploadFile(
-  bucket: string,
-  folder: string,
-  file: File,
-): Promise<string> {
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `${folder}/${nanoid()}.${ext}`;
-  const { error } = await supabaseAdmin.storage
-    .from(bucket)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (error)
-    throw new Error(`Storage upload failed (${bucket}): ${error.message}`);
-  return publicUrl(bucket, path);
-}
 
 /* ── Types ── */
 interface TicketTierPayload {
@@ -41,6 +17,12 @@ interface ThemePayload {
   accent: string;
   accentCustom?: string;
   bgColor?: string;
+}
+interface LocationPayload {
+  displayName: string;
+  address: string;
+  lat?: number;
+  lon?: number;
 }
 interface SectionPayload {
   type: string;
@@ -134,7 +116,7 @@ export async function GET(
 /* ================================================================
    PUT /api/events/[id]
    Updates an existing event and all associated records.
-   Accepts multipart/form-data.
+   Accepts JSON body. All images are already uploaded as URLs.
 ================================================================ */
 export async function PUT(
   request: NextRequest,
@@ -153,78 +135,46 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    /* ── Verify ownership ── */
+    /* ── Verify ownership or collaborator access ── */
     const { data: existing } = await supabaseAdmin
       .from("events")
-      .select("creator_profile_id")
+      .select("creator_profile_id, collaborators")
       .eq("id", eventId)
       .single();
 
     if (!existing) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
-    if (existing.creator_profile_id !== user.id) {
+    const isCreator = existing.creator_profile_id === user.id;
+    const isCollaborator = (existing.collaborators ?? []).includes(user.id);
+    if (!isCreator && !isCollaborator) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    /* ── Parse multipart form ── */
-    const formData = await request.formData();
+    /* ── Parse JSON body ── */
+    const body = await request.json();
 
-    const name = formData.get("name") as string;
-    const description = (formData.get("description") as string) || null;
-    const startDate = formData.get("startDate") as string;
-    const startTime = formData.get("startTime") as string;
-    const endDate = (formData.get("endDate") as string) || null;
-    const endTime = (formData.get("endTime") as string) || null;
-    const timezone = (formData.get("timezone") as string) || null;
-    const isOnline = formData.get("isOnline") === "true";
-    const category = (formData.get("category") as string) || null;
-    const tags: string[] = JSON.parse((formData.get("tags") as string) || "[]");
-    const hostIds: string[] = JSON.parse(
-      (formData.get("hostIds") as string) || "[]",
-    );
-    const pricing: TicketTierPayload[] = JSON.parse(
-      (formData.get("pricing") as string) || "[]",
-    );
-    const links: EventLinkPayload[] = JSON.parse(
-      (formData.get("links") as string) || "[]",
-    );
-    const theme: ThemePayload | null = formData.get("theme")
-      ? JSON.parse(formData.get("theme") as string)
-      : null;
-    const sections: SectionPayload[] = JSON.parse(
-      (formData.get("sections") as string) || "[]",
-    );
+    const name: string = body.name ?? "";
+    const description: string | null = body.description || null;
+    const startDate: string = body.startDate;
+    const startTime: string = body.startTime;
+    const endDate: string | null = body.endDate || null;
+    const endTime: string | null = body.endTime || null;
+    const timezone: string | null = body.timezone || null;
+    const isOnline: boolean = body.isOnline ?? false;
+    const category: string | null = body.category || null;
+    const tags: string[] = body.tags ?? [];
+    const hostIds: string[] = body.hostIds ?? [];
+    const pricing: TicketTierPayload[] = body.pricing ?? [];
+    const links: EventLinkPayload[] = body.links ?? [];
+    const theme: ThemePayload | null = body.theme ?? null;
+    const location: LocationPayload | null = body.location ?? null;
+    const imageUrls: string[] = body.imageUrls ?? [];
+    const sections: SectionPayload[] = body.sections ?? [];
+    const eventStatus: string | undefined = body.status;
 
-    /* Location */
-    const locationDisplayName =
-      (formData.get("location.displayName") as string) || null;
-    const locationAddress =
-      (formData.get("location.address") as string) || null;
-    const locationLat = formData.get("location.lat")
-      ? parseFloat(formData.get("location.lat") as string)
-      : null;
-    const locationLon = formData.get("location.lon")
-      ? parseFloat(formData.get("location.lon") as string)
-      : null;
-
-    /* Existing images the user kept (URLs) */
-    const keepImageUrls: string[] = JSON.parse(
-      (formData.get("keepImageUrls") as string) || "[]",
-    );
-
-    /* New carousel files */
-    const carouselFiles: File[] = formData.getAll("images") as File[];
-
-    /* Section files */
-    const sectionFileMap = new Map<string, File>();
-    for (const [key, val] of formData.entries()) {
-      if (key.startsWith("sectionFile-") && val instanceof File) {
-        sectionFileMap.set(key, val);
-      }
-    }
-
-    if (!name) {
+    /* Name is required only when publishing */
+    if (eventStatus === "published" && !name) {
       return NextResponse.json(
         { error: "Event name is required" },
         { status: 400 },
@@ -241,64 +191,29 @@ export async function PUT(
         ? new Date(`${endDate}T${endTime}`).toISOString()
         : null;
 
-    /* ── Handle carousel images ── */
-    // Delete images that were removed by the user
+    /* ── Clean up removed carousel images from storage ── */
     const { data: oldImages } = await supabaseAdmin
       .from("event_images")
       .select("url")
       .eq("event_id", eventId);
 
     const oldUrls = (oldImages ?? []).map((i) => i.url);
-    const removedUrls = oldUrls.filter((u) => !keepImageUrls.includes(u));
+    const removedUrls = oldUrls.filter((u) => !imageUrls.includes(u));
 
-    // Delete removed files from storage
     for (const url of removedUrls) {
       try {
-        // Extract path from public URL: .../storage/v1/object/public/event_images/{path}
-        const match = url.match(/\/event_images\/(.+)$/);
+        const match = url.match(/\/media\/(.+)$/);
         if (match) {
-          await supabaseAdmin.storage.from("event_images").remove([match[1]]);
+          await supabaseAdmin.storage.from("media").remove([match[1]]);
         }
       } catch {
         // Best effort
       }
     }
 
-    // Upload new files
-    const newImageUrls: string[] = [];
-    for (const file of carouselFiles) {
-      const url = await uploadFile("event_images", eventId, file);
-      newImageUrls.push(url);
-    }
-
-    const allImageUrls = [...keepImageUrls, ...newImageUrls];
-
-    /* ── Upload section files ── */
-    for (const [key, file] of sectionFileMap) {
-      const parts = key.split("-");
-      const secIdx = parseInt(parts[1], 10);
-      const itemIdx = parseInt(parts[2], 10);
-      const section = sections[secIdx];
-      if (!section) continue;
-
-      let bucket = "event_images";
-      if (section.type === "panelists") bucket = "event_panelist_images";
-      if (section.type === "companies") bucket = "event_company_logos";
-
-      const url = await uploadFile(bucket, eventId, file);
-
-      const items = (section.data as { items?: Record<string, unknown>[] })
-        .items;
-      if (items && items[itemIdx]) {
-        if (section.type === "panelists") items[itemIdx].imageUrl = url;
-        else if (section.type === "companies") items[itemIdx].logoUrl = url;
-      }
-    }
-
     /* ── Upsert location ── */
     let locationId: string | null = null;
-    if (locationDisplayName && !isOnline) {
-      // Delete old location if exists, insert new one
+    if (location?.displayName && !isOnline) {
       const { data: oldEvent } = await supabaseAdmin
         .from("events")
         .select("location_id")
@@ -306,14 +221,13 @@ export async function PUT(
         .single();
 
       if (oldEvent?.location_id) {
-        // Update existing location
         const { error: locErr } = await supabaseAdmin
           .from("event_locations")
           .update({
-            venue: locationDisplayName,
-            address: locationAddress,
-            latitude: locationLat,
-            longitude: locationLon,
+            venue: location.displayName,
+            address: location.address || null,
+            latitude: location.lat ?? null,
+            longitude: location.lon ?? null,
           })
           .eq("id", oldEvent.location_id);
         if (!locErr) locationId = oldEvent.location_id;
@@ -323,10 +237,10 @@ export async function PUT(
         const { data: loc, error: locErr } = await supabaseAdmin
           .from("event_locations")
           .insert({
-            venue: locationDisplayName,
-            address: locationAddress,
-            latitude: locationLat,
-            longitude: locationLon,
+            venue: location.displayName,
+            address: location.address || null,
+            latitude: location.lat ?? null,
+            longitude: location.lon ?? null,
           })
           .select("id")
           .single();
@@ -337,28 +251,35 @@ export async function PUT(
     }
 
     /* ── Update event row ── */
-    const thumbnail = allImageUrls[0] ?? null;
+    const thumbnail = imageUrls[0] ?? null;
+    const updatePayload: Record<string, unknown> = {
+      name,
+      description,
+      start: startTs,
+      end: endTs,
+      is_online: isOnline,
+      thumbnail,
+      location_id: locationId,
+      category,
+      tags,
+      timezone,
+    };
+    if (eventStatus) {
+      updatePayload.status = eventStatus;
+      if (eventStatus === "published") {
+        updatePayload.published_at = new Date().toISOString();
+      }
+    }
     const { error: eventErr } = await supabaseAdmin
       .from("events")
-      .update({
-        name,
-        description,
-        start: startTs,
-        end: endTs,
-        is_online: isOnline,
-        thumbnail,
-        location_id: locationId,
-        category,
-        tags,
-        timezone,
-      })
+      .update(updatePayload)
       .eq("id", eventId);
     if (eventErr) throw new Error(`Event update failed: ${eventErr.message}`);
 
-    /* ── Replace carousel images (delete all, re-insert) ── */
+    /* ── Replace carousel images ── */
     await supabaseAdmin.from("event_images").delete().eq("event_id", eventId);
-    if (allImageUrls.length > 0) {
-      const rows = allImageUrls.map((url, i) => ({
+    if (imageUrls.length > 0) {
+      const rows = imageUrls.map((url, i) => ({
         event_id: eventId,
         url,
         sort_order: i,

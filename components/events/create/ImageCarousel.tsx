@@ -85,7 +85,7 @@ export function ImageCarousel({ images, onEditClick }: ImageCarouselProps) {
               className="relative aspect-square w-full overflow-hidden rounded-xl md:w-1/3"
             >
               <Image
-                src={img.preview}
+                src={img.url}
                 alt={i === 0 ? "Thumbnail" : `Photo ${i + 1}`}
                 fill
                 className="object-cover"
@@ -129,7 +129,7 @@ export function ImageCarousel({ images, onEditClick }: ImageCarouselProps) {
             <CarouselItem key={img.id} className="pl-2 md:basis-1/3">
               <div className="relative aspect-square overflow-hidden rounded-xl">
                 <Image
-                  src={img.preview}
+                  src={img.url}
                   alt={i === 0 ? "Thumbnail" : `Photo ${i + 1}`}
                   fill
                   className="object-cover"

@@ -1,33 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { nanoid } from "nanoid";
 
-/* ── helpers ── */
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-
-function publicUrl(bucket: string, path: string) {
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
-}
-
-/** Upload a file to a storage bucket and return the public URL. */
-async function uploadFile(
-  bucket: string,
-  folder: string,
-  file: File,
-): Promise<string> {
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `${folder}/${nanoid()}.${ext}`;
-  const { error } = await supabaseAdmin.storage
-    .from(bucket)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (error)
-    throw new Error(`Storage upload failed (${bucket}): ${error.message}`);
-  return publicUrl(bucket, path);
-}
-
-/* ── Types matching the FormData payload ── */
+/* ── Types matching the JSON payload ── */
 
 interface TicketTierPayload {
   label: string;
@@ -44,6 +19,12 @@ interface ThemePayload {
   accentCustom?: string;
   bgColor?: string;
 }
+interface LocationPayload {
+  displayName: string;
+  address: string;
+  lat?: number;
+  lon?: number;
+}
 interface SectionPayload {
   type: string;
   data: unknown;
@@ -51,16 +32,20 @@ interface SectionPayload {
 
 /* ================================================================
    GET /api/events
-   Fetches events for a given creator (organisation).
+   Fetches events for a given creator (or collaborator).
    Query params:
      - creator_id: UUID of the organisation profile
-     - limit: max results (default: 50)
+     - status: filter by event status ("draft" | "published" | "archived")
+     - cursor: ISO timestamp for cursor-based pagination (returns events before this)
+     - limit: max results (default: 20)
 ================================================================ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const creatorId = searchParams.get("creator_id");
-    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const statusFilter = searchParams.get("status");
+    const cursor = searchParams.get("cursor");
+    const limit = parseInt(searchParams.get("limit") || "20", 10);
 
     if (!creatorId) {
       return NextResponse.json(
@@ -69,21 +54,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("events")
       .select(
-        "id, name, description, start, end, thumbnail, is_online, capacity, category, published_at",
+        "id, name, description, start, end, thumbnail, is_online, capacity, category, published_at, status, created_at",
       )
-      .eq("creator_profile_id", creatorId)
-      .order("start", { ascending: false })
-      .limit(limit);
+      .or(
+        `creator_profile_id.eq.${creatorId},collaborators.cs.{${creatorId}}`,
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit + 1); // fetch one extra to determine hasMore
+
+    if (statusFilter) {
+      query = query.eq("status", statusFilter);
+    }
+
+    if (cursor) {
+      query = query.lt("created_at", cursor);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Events fetch error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    const hasMore = (data?.length ?? 0) > limit;
+    const items = hasMore ? data!.slice(0, limit) : (data ?? []);
+    const nextCursor = hasMore ? items[items.length - 1].created_at : null;
+
+    return NextResponse.json({ data: items, hasMore, nextCursor });
   } catch (error) {
     console.error("Events route error:", error);
     return NextResponse.json(
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
 /* ================================================================
    POST /api/events
    Creates a new event with all associated records.
-   Accepts multipart/form-data.
+   Accepts JSON body. All images are already uploaded as URLs.
 ================================================================ */
 export async function POST(request: NextRequest) {
   try {
@@ -110,67 +111,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    /* ── Parse multipart form ── */
-    const formData = await request.formData();
+    /* ── Parse JSON body ── */
+    const body = await request.json();
 
-    const name = formData.get("name") as string;
-    const description = (formData.get("description") as string) || null;
-    const startDate = formData.get("startDate") as string;
-    const startTime = formData.get("startTime") as string;
-    const endDate = (formData.get("endDate") as string) || null;
-    const endTime = (formData.get("endTime") as string) || null;
-    const timezone = (formData.get("timezone") as string) || null;
-    const isOnline = formData.get("isOnline") === "true";
-    const category = (formData.get("category") as string) || null;
-    const tags: string[] = JSON.parse((formData.get("tags") as string) || "[]");
-    const hostIds: string[] = JSON.parse(
-      (formData.get("hostIds") as string) || "[]",
-    );
-    const pricing: TicketTierPayload[] = JSON.parse(
-      (formData.get("pricing") as string) || "[]",
-    );
-    const links: EventLinkPayload[] = JSON.parse(
-      (formData.get("links") as string) || "[]",
-    );
-    const theme: ThemePayload | null = formData.get("theme")
-      ? JSON.parse(formData.get("theme") as string)
-      : null;
-    const sections: SectionPayload[] = JSON.parse(
-      (formData.get("sections") as string) || "[]",
-    );
+    const eventId: string = body.id;
+    const eventStatus: string = body.status ?? "draft";
+    const name: string = body.name ?? "";
+    const description: string | null = body.description || null;
+    const startDate: string = body.startDate;
+    const startTime: string = body.startTime;
+    const endDate: string | null = body.endDate || null;
+    const endTime: string | null = body.endTime || null;
+    const timezone: string | null = body.timezone || null;
+    const isOnline: boolean = body.isOnline ?? false;
+    const category: string | null = body.category || null;
+    const tags: string[] = body.tags ?? [];
+    const hostIds: string[] = body.hostIds ?? [];
+    const pricing: TicketTierPayload[] = body.pricing ?? [];
+    const links: EventLinkPayload[] = body.links ?? [];
+    const theme: ThemePayload | null = body.theme ?? null;
+    const location: LocationPayload | null = body.location ?? null;
+    const imageUrls: string[] = body.imageUrls ?? [];
+    const sections: SectionPayload[] = body.sections ?? [];
 
-    /* Location */
-    const locationDisplayName =
-      (formData.get("location.displayName") as string) || null;
-    const locationAddress =
-      (formData.get("location.address") as string) || null;
-    const locationLat = formData.get("location.lat")
-      ? parseFloat(formData.get("location.lat") as string)
-      : null;
-    const locationLon = formData.get("location.lon")
-      ? parseFloat(formData.get("location.lon") as string)
-      : null;
-
-    /* Files */
-    const carouselFiles: File[] = formData.getAll("images") as File[];
-
-    /* Section files (panelist images, company logos) packed as sectionFile-{sectionIdx}-{itemIdx} */
-    const sectionFileMap = new Map<string, File>();
-    for (const [key, val] of formData.entries()) {
-      if (key.startsWith("sectionFile-") && val instanceof File) {
-        sectionFileMap.set(key, val);
-      }
-    }
-
-    if (!name) {
+    /* Name is required only when publishing */
+    if (eventStatus === "published" && !name) {
       return NextResponse.json(
         { error: "Event name is required" },
         { status: 400 },
       );
     }
-
-    /* ── Generate event ID ── */
-    const eventId = nanoid(21);
+    if (!eventId) {
+      return NextResponse.json(
+        { error: "Event ID is required" },
+        { status: 400 },
+      );
+    }
 
     /* ── Build start / end timestamps ── */
     const startTs =
@@ -182,50 +158,16 @@ export async function POST(request: NextRequest) {
         ? new Date(`${endDate}T${endTime}`).toISOString()
         : null;
 
-    /* ── Upload carousel images ── */
-    const imageUrls: string[] = [];
-    for (const file of carouselFiles) {
-      const url = await uploadFile("event_images", eventId, file);
-      imageUrls.push(url);
-    }
-
-    /* ── Upload section files (panelists / companies) ── */
-    for (const [key, file] of sectionFileMap) {
-      // key = sectionFile-{sectionIdx}-{itemIdx}
-      const parts = key.split("-");
-      const secIdx = parseInt(parts[1], 10);
-      const itemIdx = parseInt(parts[2], 10);
-      const section = sections[secIdx];
-      if (!section) continue;
-
-      let bucket = "event_images";
-      if (section.type === "panelists") bucket = "event_panelist_images";
-      if (section.type === "companies") bucket = "event_company_logos";
-
-      const url = await uploadFile(bucket, eventId, file);
-
-      // Patch the section data with the uploaded URL
-      const items = (section.data as { items?: Record<string, unknown>[] })
-        .items;
-      if (items && items[itemIdx]) {
-        if (section.type === "panelists") {
-          items[itemIdx].imageUrl = url;
-        } else if (section.type === "companies") {
-          items[itemIdx].logoUrl = url;
-        }
-      }
-    }
-
     /* ── Insert location ── */
     let locationId: string | null = null;
-    if (locationDisplayName && !isOnline) {
+    if (location?.displayName && !isOnline) {
       const { data: loc, error: locErr } = await supabaseAdmin
         .from("event_locations")
         .insert({
-          venue: locationDisplayName,
-          address: locationAddress,
-          latitude: locationLat,
-          longitude: locationLon,
+          venue: location.displayName,
+          address: location.address || null,
+          latitude: location.lat ?? null,
+          longitude: location.lon ?? null,
         })
         .select("id")
         .single();
@@ -242,7 +184,9 @@ export async function POST(request: NextRequest) {
       start: startTs,
       end: endTs,
       creator_profile_id: user.id,
-      published_at: new Date().toISOString(),
+      status: eventStatus,
+      published_at:
+        eventStatus === "published" ? new Date().toISOString() : null,
       is_online: isOnline,
       thumbnail,
       location_id: locationId,

@@ -20,7 +20,7 @@ export function EventNameField({
     return (
       <h1
         className={cn(
-          "text-2xl font-bold tracking-tight sm:text-4xl",
+          "text-2xl font-bold tracking-tight sm:text-4xl truncate",
           className,
         )}
       >

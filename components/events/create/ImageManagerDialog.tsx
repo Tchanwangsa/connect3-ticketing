@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   GripVertical,
   ImagePlus,
@@ -11,9 +12,12 @@ import {
   Trash2,
   CheckCircle2,
   MousePointerClick,
+  FolderOpen,
+  Loader2,
 } from "lucide-react";
 import ImageCropper from "@/components/ui/ImageCropper";
 import Image from "next/image";
+import { MediaLibraryDialog } from "@/components/media/MediaLibraryDialog";
 import {
   DndContext,
   closestCenter,
@@ -33,6 +37,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { CarouselImage } from "../shared/types";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { uploadEventImage } from "@/lib/utils/uploadEventImage";
+import { createClient } from "@/lib/supabase/client";
 
 /*  Helpers  */
 let _idSeq = 0;
@@ -79,18 +85,27 @@ function SortableGridItem({
       ref={setNodeRef}
       style={style}
       className="group/item relative aspect-square overflow-hidden rounded-lg border bg-muted cursor-pointer"
-      onClick={selectMode ? onToggleSelect : onCropClick}
+      onClick={
+        selectMode ? onToggleSelect : image.uploading ? undefined : onCropClick
+      }
     >
-      <Image
-        src={image.preview}
-        alt={index === 0 ? "Thumbnail" : `Photo ${index + 1}`}
-        fill
-        className="object-cover"
-        draggable={false}
-      />
+      {image.uploading ? (
+        <div className="flex h-full items-center justify-center">
+          <Skeleton className="absolute inset-0" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground z-10" />
+        </div>
+      ) : (
+        <Image
+          src={image.url}
+          alt={index === 0 ? "Thumbnail" : `Photo ${index + 1}`}
+          fill
+          className="object-cover"
+          draggable={false}
+        />
+      )}
 
-      {/* Drag handle (disabled in select mode) */}
-      {!selectMode && (
+      {/* Drag handle (disabled in select mode or uploading) */}
+      {!selectMode && !image.uploading && (
         <div
           {...attributes}
           {...listeners}
@@ -113,20 +128,20 @@ function SortableGridItem({
       )}
 
       {/* Thumbnail badge */}
-      {index === 0 && (
+      {index === 0 && !image.uploading && (
         <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow">
           <Star className="h-2.5 w-2.5" />
           {!isMobile && "Thumbnail"}
         </span>
       )}
-      {index > 0 && (
+      {index > 0 && !image.uploading && (
         <span className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] font-medium text-white">
           {index + 1}
         </span>
       )}
 
-      {/* Delete button (hidden in select mode) */}
-      {!selectMode && (
+      {/* Delete button (hidden in select mode or uploading) */}
+      {!selectMode && !image.uploading && (
         <button
           type="button"
           onClick={(e) => {
@@ -183,8 +198,8 @@ function SortableListItem({
       className={`flex items-center gap-3 rounded-lg border p-2 ${selectMode && isSelected ? "border-primary bg-primary/10" : "bg-muted/40"}`}
       onClick={selectMode ? onToggleSelect : undefined}
     >
-      {/* Drag grip (hidden in select mode) */}
-      {!selectMode && (
+      {/* Drag grip (hidden in select mode or uploading) */}
+      {!selectMode && !image.uploading && (
         <div
           {...attributes}
           {...listeners}
@@ -206,20 +221,29 @@ function SortableListItem({
       {/* Image preview */}
       <div
         className="relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-md"
-        onClick={selectMode ? undefined : onCropClick}
+        onClick={selectMode || image.uploading ? undefined : onCropClick}
       >
-        <Image
-          src={image.preview}
-          alt={index === 0 ? "Thumbnail" : `Photo ${index + 1}`}
-          fill
-          className="object-cover"
-          draggable={false}
-        />
+        {image.uploading ? (
+          <div className="flex h-full items-center justify-center">
+            <Skeleton className="absolute inset-0" />
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground z-10" />
+          </div>
+        ) : (
+          <Image
+            src={image.url}
+            alt={index === 0 ? "Thumbnail" : `Photo ${index + 1}`}
+            fill
+            className="object-cover"
+            draggable={false}
+          />
+        )}
       </div>
 
       {/* Label */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {index === 0 ? (
+        {image.uploading ? (
+          <span className="text-xs text-muted-foreground">Uploading…</span>
+        ) : index === 0 ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground shadow-sm">
             <Star className="h-3 w-3" />
             Thumbnail
@@ -231,8 +255,8 @@ function SortableListItem({
         )}
       </div>
 
-      {/* Delete (hidden in select mode) */}
-      {!selectMode && (
+      {/* Delete (hidden in select mode or uploading) */}
+      {!selectMode && !image.uploading && (
         <button
           type="button"
           onClick={(e) => {
@@ -254,6 +278,8 @@ interface ImageManagerDialogProps {
   onOpenChange: (open: boolean) => void;
   images: CarouselImage[];
   onConfirm: (images: CarouselImage[]) => void;
+  /** Event ID for scoped uploads */
+  eventId: string;
   maxImages?: number;
 }
 
@@ -262,6 +288,7 @@ export function ImageManagerDialog({
   onOpenChange,
   images,
   onConfirm,
+  eventId,
   maxImages = 10,
 }: ImageManagerDialogProps) {
   return (
@@ -275,6 +302,7 @@ export function ImageManagerDialog({
           images={images}
           onConfirm={onConfirm}
           onOpenChange={onOpenChange}
+          eventId={eventId}
           maxImages={maxImages}
         />
       )}
@@ -287,21 +315,18 @@ function ImageManagerContent({
   images,
   onConfirm,
   onOpenChange,
+  eventId,
   maxImages = 10,
 }: {
   images: CarouselImage[];
   onConfirm: (images: CarouselImage[]) => void;
   onOpenChange: (open: boolean) => void;
+  eventId: string;
   maxImages?: number;
 }) {
   const [localImages, setLocalImages] = useState<CarouselImage[]>(() =>
     images.map((img) => ({ ...img })),
   );
-
-  // Track blob URLs created in this session (newly uploaded) so we can revoke on cancel
-  const addedBlobUrls = useRef<Set<string>>(new Set());
-  // Track blob URLs of removed images so we can revoke on confirm
-  const removedBlobUrls = useRef<Set<string>>(new Set());
 
   /* Which image index is being cropped (null = grid view) */
   const [cropTargetIndex, setCropTargetIndex] = useState<number | null>(null);
@@ -315,6 +340,68 @@ function ImageManagerContent({
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  /* Media library dialog */
+  const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
+
+  /* ── Upload files immediately to event storage ── */
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const fileList = e.target.files;
+      if (!fileList || fileList.length === 0) return;
+
+      const files = Array.from(fileList);
+      e.target.value = "";
+
+      const remaining = maxImages - localImages.length;
+      const toUpload = files.slice(0, remaining);
+
+      // Create placeholder entries with uploading=true
+      const placeholders: CarouselImage[] = toUpload.map(() => ({
+        id: genId(),
+        url: "",
+        uploading: true,
+      }));
+
+      setLocalImages((prev) => [...prev, ...placeholders]);
+
+      // Upload each file and replace the placeholder
+      for (let i = 0; i < toUpload.length; i++) {
+        const file = toUpload[i];
+        const placeholderId = placeholders[i].id;
+
+        try {
+          const url = await uploadEventImage(eventId, "images", file);
+          setLocalImages((prev) =>
+            prev.map((img) =>
+              img.id === placeholderId
+                ? { ...img, url, uploading: false }
+                : img,
+            ),
+          );
+        } catch (err) {
+          console.error("Upload failed:", err);
+          setLocalImages((prev) =>
+            prev.filter((img) => img.id !== placeholderId),
+          );
+        }
+      }
+    },
+    [localImages.length, maxImages, eventId],
+  );
+
+  /* ── Select from media library ── */
+  const handleMediaSelect = useCallback(
+    (urls: string[]) => {
+      const remaining = maxImages - localImages.length;
+      const toAdd = urls.slice(0, remaining).map((url) => ({
+        id: genId(),
+        url,
+      }));
+      setLocalImages((prev) => [...prev, ...toAdd]);
+    },
+    [localImages.length, maxImages],
+  );
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -323,20 +410,6 @@ function ImageManagerContent({
       return next;
     });
   }, []);
-
-  const handleBulkDelete = useCallback(() => {
-    setLocalImages((prev) => {
-      const removed = prev.filter((img) => selectedIds.has(img.id));
-      removed.forEach((img) => {
-        if (img.preview.startsWith("blob:")) {
-          removedBlobUrls.current.add(img.preview);
-        }
-      });
-      return prev.filter((img) => !selectedIds.has(img.id));
-    });
-    setSelectedIds(new Set());
-    setSelectMode(false);
-  }, [selectedIds]);
 
   const isMobile = useIsMobile();
 
@@ -356,28 +429,12 @@ function ImageManagerContent({
     });
   };
 
-  /*  Upload (no crop queue  just add immediately)  */
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files ?? []);
-      if (!files.length) return;
-      const remaining = maxImages - localImages.length;
-      const toAdd = files.slice(0, remaining).map((f) => {
-        const preview = URL.createObjectURL(f);
-        addedBlobUrls.current.add(preview);
-        return { id: genId(), file: f, preview };
-      });
-      setLocalImages((prev) => [...prev, ...toAdd]);
-      e.target.value = "";
-    },
-    [localImages.length, maxImages],
-  );
-
   /*  Click to crop / re-crop an existing image  */
   const openCropFor = useCallback((index: number) => {
     setLocalImages((prev) => {
       const img = prev[index];
-      setPendingCropSrc(img.preview);
+      if (!img.url || img.uploading) return prev;
+      setPendingCropSrc(img.url);
       setCropTargetIndex(index);
       setCroppedFile(null);
       return prev;
@@ -388,32 +445,45 @@ function ImageManagerContent({
     setCroppedFile(file);
   }, []);
 
-  const handleCropConfirm = useCallback(() => {
+  const handleCropConfirm = useCallback(async () => {
     if (!croppedFile || cropTargetIndex === null) return;
-    const newPreview = URL.createObjectURL(croppedFile);
-    addedBlobUrls.current.add(newPreview);
-    setLocalImages((prev) => {
-      const next = [...prev];
-      const old = next[cropTargetIndex];
-      /* Revoke old blob only if it was newly added in this session */
-      if (
-        old.preview.startsWith("blob:") &&
-        addedBlobUrls.current.has(old.preview)
-      ) {
-        URL.revokeObjectURL(old.preview);
-        addedBlobUrls.current.delete(old.preview);
-      }
-      next[cropTargetIndex] = {
-        ...old,
-        file: croppedFile,
-        preview: newPreview,
-      };
-      return next;
-    });
+
+    const targetId = localImages[cropTargetIndex]?.id;
+
+    // Mark the image as uploading
+    setLocalImages((prev) =>
+      prev.map((img) =>
+        img.id === targetId ? { ...img, uploading: true } : img,
+      ),
+    );
+
+    // Close crop view
     setCropTargetIndex(null);
     setPendingCropSrc(null);
     setCroppedFile(null);
-  }, [croppedFile, cropTargetIndex]);
+
+    try {
+      const url = await uploadEventImage(
+        eventId,
+        "images",
+        croppedFile,
+        `event-photo-cropped.png`,
+      );
+
+      setLocalImages((prev) =>
+        prev.map((img) =>
+          img.id === targetId ? { ...img, url, uploading: false } : img,
+        ),
+      );
+    } catch (err) {
+      console.error("Crop upload failed:", err);
+      setLocalImages((prev) =>
+        prev.map((img) =>
+          img.id === targetId ? { ...img, uploading: false } : img,
+        ),
+      );
+    }
+  }, [croppedFile, cropTargetIndex, eventId, localImages]);
 
   const handleCropCancel = useCallback(() => {
     setCropTargetIndex(null);
@@ -421,43 +491,72 @@ function ImageManagerContent({
     setCroppedFile(null);
   }, []);
 
-  /*  Remove — don't revoke URLs yet, just track them  */
-  const handleRemove = useCallback((index: number) => {
-    setLocalImages((prev) => {
-      const removed = prev[index];
-      if (removed.preview.startsWith("blob:")) {
-        removedBlobUrls.current.add(removed.preview);
-      }
-      return prev.filter((_, i) => i !== index);
-    });
+  /** Delete a file from Supabase storage given its public URL (best-effort) */
+  const deleteFromStorage = useCallback((url: string) => {
+    try {
+      const match = url.match(/\/media\/(.+)$/);
+      if (!match) return;
+      const path = decodeURIComponent(match[1]);
+      const supabase = createClient();
+      supabase.storage
+        .from("media")
+        .remove([path])
+        .then(({ error }) => {
+          if (error)
+            console.error("[ImageManager] storage delete error:", error);
+        });
+    } catch {
+      // Best-effort cleanup
+    }
   }, []);
 
+  /*  Remove  */
+  const handleRemove = useCallback(
+    (index: number) => {
+      setLocalImages((prev) => {
+        const removed = prev[index];
+        // Delete the file from storage if it was newly uploaded (not in the original set)
+        if (removed?.url && !images.some((img) => img.url === removed.url)) {
+          deleteFromStorage(removed.url);
+        }
+        return prev.filter((_, i) => i !== index);
+      });
+    },
+    [images, deleteFromStorage],
+  );
+
+  /* Bulk delete also cleans up storage */
+  const handleBulkDeleteWithCleanup = useCallback(() => {
+    const toDelete = localImages.filter((img) => selectedIds.has(img.id));
+    for (const img of toDelete) {
+      if (img.url && !images.some((orig) => orig.url === img.url)) {
+        deleteFromStorage(img.url);
+      }
+    }
+    setLocalImages((prev) => prev.filter((img) => !selectedIds.has(img.id)));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, [selectedIds, localImages, images, deleteFromStorage]);
+
   /*  Confirm / Cancel  */
+  const hasUploading = localImages.some((img) => img.uploading);
+
   const handleConfirm = useCallback(() => {
-    // Revoke blob URLs of removed images (no longer needed)
-    removedBlobUrls.current.forEach((url) => URL.revokeObjectURL(url));
-    onConfirm(localImages);
+    const confirmed = localImages.filter((img) => !img.uploading && img.url);
+    onConfirm(confirmed);
     onOpenChange(false);
   }, [localImages, onConfirm, onOpenChange]);
 
-  // On cancel (dialog close without confirm), revoke only newly-added blobs
-  // so parent's original images stay intact
   const handleCancel = useCallback(() => {
-    // Revoke blobs that were added in this session but not confirmed
-    addedBlobUrls.current.forEach((url) => {
-      // Don't revoke if the URL was for an image that got removed (already tracked)
-      if (!removedBlobUrls.current.has(url)) {
-        URL.revokeObjectURL(url);
+    // Clean up any images that were uploaded in this session but not in the original set
+    const originalUrls = new Set(images.map((img) => img.url));
+    for (const img of localImages) {
+      if (img.url && !img.uploading && !originalUrls.has(img.url)) {
+        deleteFromStorage(img.url);
       }
-    });
-    // Revoke removed blobs that were newly added (double cleanup)
-    removedBlobUrls.current.forEach((url) => {
-      if (addedBlobUrls.current.has(url)) {
-        URL.revokeObjectURL(url);
-      }
-    });
+    }
     onOpenChange(false);
-  }, [onOpenChange]);
+  }, [onOpenChange, localImages, images, deleteFromStorage]);
 
   /*  Crop view  */
   if (isCropping) {
@@ -507,12 +606,23 @@ function ImageManagerContent({
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={handleBulkDelete}
+                onClick={handleBulkDeleteWithCleanup}
                 className="gap-1.5"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete {selectedIds.size} Image
                 {selectedIds.size !== 1 ? "s" : ""}
+              </Button>
+            )}
+            {!selectMode && localImages.length < maxImages && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMediaLibraryOpen(true)}
+                className="gap-1.5"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                Library
               </Button>
             )}
             <Button
@@ -607,19 +717,34 @@ function ImageManagerContent({
             </SortableContext>
           </DndContext>
         ) : (
-          <label className="flex cursor-pointer flex-col items-center justify-center py-12 text-muted-foreground transition-colors hover:text-foreground">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <ImagePlus className="mb-3 h-12 w-12" />
-            <p className="text-sm font-medium">No photos yet</p>
-            <p className="text-xs">Click to upload up to {maxImages} photos</p>
-          </label>
+          <>
+            <label className="flex cursor-pointer flex-col items-center justify-center py-12 text-muted-foreground transition-colors hover:text-foreground">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <ImagePlus className="mb-3 h-12 w-12" />
+              <p className="text-sm font-medium">No photos yet</p>
+              <p className="text-xs">
+                Click to upload up to {maxImages} photos
+              </p>
+            </label>
+            <div className="flex justify-center -mt-8 mb-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMediaLibraryOpen(true)}
+                className="gap-1.5"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                Choose from Media Library
+              </Button>
+            </div>
+          </>
         )}
       </div>
       <p className="flex flex-col justify-center items-center text-sm text-muted-foreground mb-2">
@@ -643,8 +768,25 @@ function ImageManagerContent({
         <Button variant="outline" onClick={handleCancel}>
           Cancel
         </Button>
-        <Button onClick={handleConfirm}>Done</Button>
+        <Button onClick={handleConfirm} disabled={hasUploading}>
+          {hasUploading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Uploading…
+            </>
+          ) : (
+            "Done"
+          )}
+        </Button>
       </div>
+
+      <MediaLibraryDialog
+        open={mediaLibraryOpen}
+        onOpenChange={setMediaLibraryOpen}
+        defaultTab="images"
+        multiSelect
+        onSelect={handleMediaSelect}
+      />
     </>
   );
 }

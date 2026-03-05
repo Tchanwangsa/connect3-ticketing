@@ -20,8 +20,12 @@ export default function EditEventPage() {
 
     fetchEvent(id)
       .then((result) => {
-        // Verify ownership on client side
-        if (user && result.creatorProfileId !== user.id) {
+        // Verify ownership or collaborator access on client side
+        if (
+          user &&
+          result.creatorProfileId !== user.id &&
+          !(result.collaborators ?? []).includes(user.id)
+        ) {
           toast.error("You don't have permission to edit this event.");
           router.push("/");
           return;
@@ -55,6 +59,7 @@ export default function EditEventPage() {
       initialCarouselImages={data.carouselImages}
       initialHostsData={data.hostsData}
       initialSections={data.sections}
+      initialStatus={data.status}
     />
   );
 }

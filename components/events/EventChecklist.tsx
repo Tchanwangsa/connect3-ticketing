@@ -25,7 +25,7 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
   {
     id: "thumbnail",
     label: "Add a thumbnail",
-    check: (f) => f.imageFiles.length > 0,
+    check: (f) => f.imageUrls.length > 0,
   },
   {
     id: "start-date",
@@ -97,10 +97,8 @@ export function EventChecklist({
       hasExistingThumbnail
         ? {
             ...form,
-            imageFiles:
-              form.imageFiles.length > 0
-                ? form.imageFiles
-                : [new File([], "existing")],
+            imageUrls:
+              form.imageUrls.length > 0 ? form.imageUrls : ["existing"],
           }
         : form,
     [form, hasExistingThumbnail],

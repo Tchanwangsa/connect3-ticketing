@@ -75,7 +75,9 @@ interface RawEvent {
   is_online: boolean;
   category: string | null;
   tags: string[] | null;
+  status: string;
   creator_profile_id: string;
+  collaborators: string[];
   event_locations: RawLocation | null;
   images: RawImage[];
   hosts: RawHost[];
@@ -92,6 +94,8 @@ export interface FetchedEventData {
   hostsData: ClubProfile[];
   sections: SectionData[];
   creatorProfileId: string;
+  collaborators: string[];
+  status: "draft" | "published" | "archived";
 }
 
 /**
@@ -174,8 +178,7 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
   const existingImages = data.images.map((i) => i.url);
   const carouselImages: CarouselImage[] = data.images.map((img) => ({
     id: img.id,
-    file: null,
-    preview: img.url,
+    url: img.url,
   }));
 
   /* ── Sections ── */
@@ -198,7 +201,7 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
     category: data.category ?? "",
     tags: data.tags ?? [],
     hostIds,
-    imageFiles: [],
+    imageUrls: existingImages,
     pricing,
     links: eventLinks,
     theme,
@@ -211,5 +214,7 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
     hostsData,
     sections,
     creatorProfileId: data.creator_profile_id,
+    collaborators: data.collaborators ?? [],
+    status: (data.status ?? "draft") as "draft" | "published" | "archived",
   };
 }

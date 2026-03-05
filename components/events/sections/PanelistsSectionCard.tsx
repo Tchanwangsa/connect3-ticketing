@@ -6,7 +6,8 @@ import { Plus, Trash2, ImagePlus, GripVertical } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { PanelistsSectionData, Panelist } from "./types";
-import { useRef, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { MediaLibraryDialog } from "@/components/media/MediaLibraryDialog";
 import {
   DndContext,
   closestCenter,
@@ -39,7 +40,7 @@ function SortablePanelistItem({
   canRemove,
   onUpdate,
   onRemove,
-  onImageUpload,
+  onMediaPick,
   isDark,
 }: {
   id: string;
@@ -48,10 +49,9 @@ function SortablePanelistItem({
   canRemove: boolean;
   onUpdate: (index: number, partial: Partial<Panelist>) => void;
   onRemove: (index: number) => void;
-  onImageUpload: (index: number, file: File) => void;
+  onMediaPick: (index: number) => void;
   isDark?: boolean;
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const {
     attributes,
     listeners,
@@ -88,10 +88,10 @@ function SortablePanelistItem({
         <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/40" />
       </button>
 
-      {/* Avatar / image upload */}
+      {/* Avatar — click opens media library */}
       <button
         type="button"
-        onClick={() => fileRef.current?.click()}
+        onClick={() => onMediaPick(index)}
         className="shrink-0"
       >
         <Avatar className="h-12 w-12 cursor-pointer transition-opacity hover:opacity-80">
@@ -109,16 +109,6 @@ function SortablePanelistItem({
             />
           </AvatarFallback>
         </Avatar>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onImageUpload(index, f);
-          }}
-        />
       </button>
 
       {/* Name + Title */}
@@ -164,6 +154,9 @@ export function PanelistsSectionCard({
   onChange,
   isDark,
 }: PanelistsSectionCardProps) {
+  const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
+  const [mediaPickIndex, setMediaPickIndex] = useState<number | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
@@ -194,9 +187,16 @@ export function PanelistsSectionCard({
     onChange({ ...data, items: data.items.filter((_, i) => i !== index) });
   };
 
-  const handleImageUpload = (index: number, file: File) => {
-    const url = URL.createObjectURL(file);
-    updateItem(index, { imageUrl: url });
+  const handleMediaPick = (index: number) => {
+    setMediaPickIndex(index);
+    setMediaLibraryOpen(true);
+  };
+
+  const handleMediaSelect = (urls: string[]) => {
+    if (urls.length > 0 && mediaPickIndex !== null) {
+      updateItem(mediaPickIndex, { imageUrl: urls[0] });
+    }
+    setMediaPickIndex(null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -224,7 +224,7 @@ export function PanelistsSectionCard({
               canRemove={data.items.length > 1}
               onUpdate={updateItem}
               onRemove={removeItem}
-              onImageUpload={handleImageUpload}
+              onMediaPick={handleMediaPick}
               isDark={isDark}
             />
           ))}
@@ -244,6 +244,13 @@ export function PanelistsSectionCard({
         <Plus className="h-4 w-4" />
         Add Panelist
       </Button>
+
+      <MediaLibraryDialog
+        open={mediaLibraryOpen}
+        onOpenChange={setMediaLibraryOpen}
+        defaultTab="panelists"
+        onSelect={handleMediaSelect}
+      />
     </div>
   );
 }
