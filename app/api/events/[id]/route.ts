@@ -67,7 +67,7 @@ export async function GET(
       supabaseAdmin
         .from("event_hosts")
         .select(
-          "profile_id, sort_order, profiles:profile_id(id, first_name, avatar_url)",
+          "profile_id, sort_order, status, inviter_id, profiles:profile_id(id, first_name, avatar_url)",
         )
         .eq("event_id", id)
         .order("sort_order"),
@@ -135,10 +135,10 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    /* ── Verify ownership or collaborator access ── */
+    /* ── Verify ownership or accepted collaborator ── */
     const { data: existing } = await supabaseAdmin
       .from("events")
-      .select("creator_profile_id, collaborators")
+      .select("creator_profile_id")
       .eq("id", eventId)
       .single();
 
@@ -146,7 +146,17 @@ export async function PUT(
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
     const isCreator = existing.creator_profile_id === user.id;
-    const isCollaborator = (existing.collaborators ?? []).includes(user.id);
+    let isCollaborator = false;
+    if (!isCreator) {
+      const { data: hostRow } = await supabaseAdmin
+        .from("event_hosts")
+        .select("status")
+        .eq("event_id", eventId)
+        .eq("profile_id", user.id)
+        .eq("status", "accepted")
+        .maybeSingle();
+      isCollaborator = !!hostRow;
+    }
     if (!isCreator && !isCollaborator) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -287,16 +297,28 @@ export async function PUT(
       await supabaseAdmin.from("event_images").insert(rows);
     }
 
-    /* ── Replace hosts ── */
-    await supabaseAdmin.from("event_hosts").delete().eq("event_id", eventId);
-    const allHostIds = [user.id, ...hostIds.filter((hid) => hid !== user.id)];
-    if (allHostIds.length > 0) {
-      const rows = allHostIds.map((pid, i) => ({
+    /* ── Replace display-only (confirmed) hosts, preserve invite-status hosts ── */
+    await supabaseAdmin
+      .from("event_hosts")
+      .delete()
+      .eq("event_id", eventId)
+      .eq("status", "confirmed");
+    const displayHostIds = hostIds.filter(
+      (hid) => hid !== existing.creator_profile_id,
+    );
+    if (displayHostIds.length > 0) {
+      const rows = displayHostIds.map((pid, i) => ({
         event_id: eventId,
         profile_id: pid,
         sort_order: i,
+        status: "confirmed",
       }));
-      await supabaseAdmin.from("event_hosts").insert(rows);
+      await supabaseAdmin
+        .from("event_hosts")
+        .upsert(rows, {
+          onConflict: "event_id,profile_id",
+          ignoreDuplicates: true,
+        });
     }
 
     /* ── Replace ticket tiers ── */

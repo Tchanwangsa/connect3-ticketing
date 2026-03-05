@@ -20,15 +20,15 @@ export default function EditEventPage() {
 
     fetchEvent(id)
       .then((result) => {
-        // Verify ownership or collaborator access on client side
-        if (
-          user &&
-          result.creatorProfileId !== user.id &&
-          !(result.collaborators ?? []).includes(user.id)
-        ) {
-          toast.error("You don't have permission to edit this event.");
-          router.push("/");
-          return;
+        // Verify ownership or accepted collaborator on client side
+        // (The PUT endpoint enforces this server-side too.)
+        if (user && result.creatorProfileId !== user.id) {
+          const isAcceptedHost = result.hostsData.some((h) => h.id === user.id);
+          if (!isAcceptedHost) {
+            toast.error("You don't have permission to edit this event.");
+            router.push("/");
+            return;
+          }
         }
         setData(result);
       })
@@ -60,6 +60,7 @@ export default function EditEventPage() {
       initialHostsData={data.hostsData}
       initialSections={data.sections}
       initialStatus={data.status}
+      initialCreatorProfile={data.creatorProfile}
     />
   );
 }

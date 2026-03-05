@@ -54,12 +54,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    /* First, get event IDs where the user is an accepted collaborator */
+    const { data: collabRows } = await supabaseAdmin
+      .from("event_hosts")
+      .select("event_id")
+      .eq("profile_id", creatorId)
+      .eq("status", "accepted");
+    const collabEventIds = (collabRows ?? []).map((r) => r.event_id);
+
     let query = supabaseAdmin
       .from("events")
       .select(
         "id, name, description, start, end, thumbnail, is_online, capacity, category, published_at, status, created_at",
       )
-      .or(`creator_profile_id.eq.${creatorId},collaborators.cs.{${creatorId}}`)
+      .or(
+        collabEventIds.length > 0
+          ? `creator_profile_id.eq.${creatorId},id.in.(${collabEventIds.join(",")})`
+          : `creator_profile_id.eq.${creatorId}`,
+      )
       .order("created_at", { ascending: false })
       .limit(limit + 1); // fetch one extra to determine hasMore
 
@@ -206,13 +218,14 @@ export async function POST(request: NextRequest) {
       if (error) console.error("event_images insert error:", error);
     }
 
-    /* ── Insert hosts ── */
-    const allHostIds = [user.id, ...hostIds.filter((id) => id !== user.id)];
-    if (allHostIds.length > 0) {
-      const rows = allHostIds.map((pid, i) => ({
+    /* ── Insert display-only hosts (not including the creator) ── */
+    const displayHostIds = hostIds.filter((id) => id !== user.id);
+    if (displayHostIds.length > 0) {
+      const rows = displayHostIds.map((pid, i) => ({
         event_id: eventId,
         profile_id: pid,
         sort_order: i,
+        status: "confirmed",
       }));
       const { error } = await supabaseAdmin.from("event_hosts").insert(rows);
       if (error) console.error("event_hosts insert error:", error);

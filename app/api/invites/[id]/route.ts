@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 /* ================================================================
    PATCH /api/invites/[id]
    Accept or decline a collaboration invite.
+   The [id] is the event_hosts row ID.
    Body: { action: "accept" | "decline" }
 ================================================================ */
 export async function PATCH(
@@ -12,7 +13,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id: inviteId } = await params;
+    const { id: hostId } = await params;
 
     /* Auth check */
     const supabase = await createClient();
@@ -35,35 +36,35 @@ export async function PATCH(
       );
     }
 
-    /* Fetch the invite and verify the current user is the invitee */
-    const { data: invite, error: fetchErr } = await supabaseAdmin
-      .from("event_invites")
-      .select("id, event_id, invitee_id, status")
-      .eq("id", inviteId)
+    /* Fetch the host row and verify the current user is the invitee */
+    const { data: hostRow, error: fetchErr } = await supabaseAdmin
+      .from("event_hosts")
+      .select("id, event_id, profile_id, status")
+      .eq("id", hostId)
       .single();
 
-    if (fetchErr || !invite) {
+    if (fetchErr || !hostRow) {
       return NextResponse.json({ error: "Invite not found" }, { status: 404 });
     }
 
-    if (invite.invitee_id !== user.id) {
+    if (hostRow.profile_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (invite.status !== "pending") {
+    if (hostRow.status !== "pending") {
       return NextResponse.json(
-        { error: `Invite already ${invite.status}` },
+        { error: `Invite already ${hostRow.status}` },
         { status: 409 },
       );
     }
 
     const newStatus = action === "accept" ? "accepted" : "declined";
 
-    /* Update the invite status */
+    /* Update the host row status */
     const { error: updateErr } = await supabaseAdmin
-      .from("event_invites")
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq("id", inviteId);
+      .from("event_hosts")
+      .update({ status: newStatus })
+      .eq("id", hostId);
 
     if (updateErr) {
       console.error("Failed to update invite:", updateErr);
@@ -73,29 +74,7 @@ export async function PATCH(
       );
     }
 
-    /* If accepted, add user to the event's collaborators array */
-    if (action === "accept") {
-      const { data: event } = await supabaseAdmin
-        .from("events")
-        .select("collaborators")
-        .eq("id", invite.event_id)
-        .single();
-
-      const existing: string[] = event?.collaborators ?? [];
-      if (!existing.includes(user.id)) {
-        const { error: colErr } = await supabaseAdmin
-          .from("events")
-          .update({ collaborators: [...existing, user.id] })
-          .eq("id", invite.event_id);
-
-        if (colErr) {
-          console.error("Failed to add collaborator:", colErr);
-          // Don't fail the whole request — invite status is already updated
-        }
-      }
-    }
-
-    return NextResponse.json({ data: { id: inviteId, status: newStatus } });
+    return NextResponse.json({ data: { id: hostId, status: newStatus } });
   } catch (error) {
     console.error("PATCH /api/invites/[id] error:", error);
     return NextResponse.json(

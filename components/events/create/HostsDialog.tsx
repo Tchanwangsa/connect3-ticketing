@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Search,
   Loader2,
   X,
@@ -16,6 +22,10 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  MoreHorizontal,
+  MailX,
+  RefreshCw,
+  UserMinus,
 } from "lucide-react";
 import { HostAvatarStack } from "../shared/HostAvatarStack";
 import type { ClubProfile, HostsValue } from "../shared/types";
@@ -74,6 +84,7 @@ export function HostsDialog({
   const [invites, setInvites] = useState<InviteRecord[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -250,6 +261,86 @@ export function HostsDialog({
     return invites.find((i) => i.invitee_id === profileId)?.status;
   };
 
+  /* ── Invite actions (cancel / remove / resend) ── */
+  const handleCancelInvite = async (profileId: string) => {
+    if (!eventId) return;
+    setActionLoading(profileId);
+    try {
+      const res = await fetch(`/api/events/${eventId}/invites`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_id: profileId }),
+      });
+      if (res.ok) {
+        setInvites((prev) => prev.filter((i) => i.invitee_id !== profileId));
+        toast.success("Invite cancelled");
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to cancel invite");
+      }
+    } catch {
+      toast.error("Failed to cancel invite");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRemoveCollaborator = async (profileId: string) => {
+    if (!eventId) return;
+    setActionLoading(profileId);
+    try {
+      const res = await fetch(`/api/events/${eventId}/invites`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_id: profileId }),
+      });
+      if (res.ok) {
+        setInvites((prev) => prev.filter((i) => i.invitee_id !== profileId));
+        // Also remove from display hosts
+        onChange({
+          ids: selectedHosts.filter((id) => id !== profileId),
+          data: selectedHostsData.filter((c) => c.id !== profileId),
+        });
+        toast.success("Collaborator removed");
+        onInvitesSent?.();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to remove collaborator");
+      }
+    } catch {
+      toast.error("Failed to remove collaborator");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleResendInvite = async (profileId: string) => {
+    if (!eventId) return;
+    setActionLoading(profileId);
+    try {
+      const res = await fetch(`/api/events/${eventId}/invites`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_id: profileId }),
+      });
+      if (res.ok) {
+        setInvites((prev) =>
+          prev.map((i) =>
+            i.invitee_id === profileId ? { ...i, status: "pending" } : i,
+          ),
+        );
+        toast.success("Invite resent");
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to resend invite");
+      }
+    } catch {
+      toast.error("Failed to resend invite");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const statusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -351,6 +442,7 @@ export function HostsDialog({
             {invites.map((invite) => {
               const profile = invite.profiles;
               if (!profile) return null;
+              const isActioning = actionLoading === invite.invitee_id;
               return (
                 <div
                   key={invite.id}
@@ -371,6 +463,50 @@ export function HostsDialog({
                     {profile.first_name}
                   </span>
                   {statusBadge(invite.status)}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={isActioning}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      >
+                        {isActioning ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      {invite.status === "pending" && (
+                        <DropdownMenuItem
+                          onClick={() => handleCancelInvite(invite.invitee_id)}
+                        >
+                          <MailX className="h-4 w-4" />
+                          Cancel Invite
+                        </DropdownMenuItem>
+                      )}
+                      {invite.status === "accepted" && (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() =>
+                            handleRemoveCollaborator(invite.invitee_id)
+                          }
+                        >
+                          <UserMinus className="h-4 w-4" />
+                          Remove
+                        </DropdownMenuItem>
+                      )}
+                      {invite.status === "declined" && (
+                        <DropdownMenuItem
+                          onClick={() => handleResendInvite(invite.invitee_id)}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Resend Invite
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
             })}

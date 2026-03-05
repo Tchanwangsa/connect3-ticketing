@@ -4,9 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 
 /* ================================================================
    GET /api/invites
-   Returns all collaboration invites for the current user.
+   Returns all collaboration invites (event_hosts) for the current user.
    Query params:
-     - status: filter by invite status (default: all)
+     - status: filter by host status (default: all)
 ================================================================ */
 export async function GET(request: Request) {
   try {
@@ -23,14 +23,15 @@ export async function GET(request: Request) {
     const statusFilter = searchParams.get("status"); // e.g. "pending"
 
     let query = supabaseAdmin
-      .from("event_invites")
+      .from("event_hosts")
       .select(
-        `id, event_id, inviter_id, status, created_at, updated_at,
+        `id, event_id, inviter_id, status, sort_order,
          events:event_id(id, name, thumbnail, start, end, is_online, category, status),
          inviter:inviter_id(id, first_name, avatar_url)`,
       )
-      .eq("invitee_id", user.id)
-      .order("created_at", { ascending: false });
+      .eq("profile_id", user.id)
+      .in("status", ["pending", "accepted", "declined"])
+      .order("sort_order", { ascending: true });
 
     if (statusFilter) {
       query = query.eq("status", statusFilter);

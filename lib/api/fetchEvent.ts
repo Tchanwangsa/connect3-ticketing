@@ -21,6 +21,8 @@ interface RawImage {
 interface RawHost {
   profile_id: string;
   sort_order: number;
+  status: string;
+  inviter_id: string | null;
   profiles: {
     id: string;
     first_name: string;
@@ -77,7 +79,6 @@ interface RawEvent {
   tags: string[] | null;
   status: string;
   creator_profile_id: string;
-  collaborators: string[];
   event_locations: RawLocation | null;
   images: RawImage[];
   hosts: RawHost[];
@@ -94,7 +95,7 @@ export interface FetchedEventData {
   hostsData: ClubProfile[];
   sections: SectionData[];
   creatorProfileId: string;
-  collaborators: string[];
+  creatorProfile?: ClubProfile;
   status: "draft" | "published" | "archived";
 }
 
@@ -137,12 +138,35 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
     lon: loc?.longitude ?? undefined,
   };
 
-  /* ── Hosts ── */
+  /* ── Creator profile (fetch separately — owner is not in event_hosts) ── */
+  let creatorProfile: ClubProfile | undefined;
+  try {
+    const profileRes = await fetch(
+      `/api/profiles/fetch?id=${data.creator_profile_id}&select=id,first_name,avatar_url`,
+    );
+    if (profileRes.ok) {
+      const { data: profileData } = await profileRes.json();
+      if (profileData) {
+        creatorProfile = {
+          id: profileData.id,
+          first_name: profileData.first_name,
+          avatar_url: profileData.avatar_url,
+        };
+      }
+    }
+  } catch {
+    // Best effort — will fall back to undefined
+  }
+
+  /* ── Hosts (owner is NOT in event_hosts, all hosts here are other clubs) ── */
   const hostIds = data.hosts
-    .filter((h) => h.profile_id !== data.creator_profile_id)
+    .filter((h) => h.status === "confirmed" || h.status === "accepted")
     .map((h) => h.profile_id);
   const hostsData: ClubProfile[] = data.hosts
-    .filter((h) => h.profiles && h.profile_id !== data.creator_profile_id)
+    .filter(
+      (h) =>
+        h.profiles && (h.status === "confirmed" || h.status === "accepted"),
+    )
     .map((h) => ({
       id: h.profiles!.id,
       first_name: h.profiles!.first_name,
@@ -214,7 +238,7 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
     hostsData,
     sections,
     creatorProfileId: data.creator_profile_id,
-    collaborators: data.collaborators ?? [],
+    creatorProfile,
     status: (data.status ?? "draft") as "draft" | "published" | "archived",
   };
 }

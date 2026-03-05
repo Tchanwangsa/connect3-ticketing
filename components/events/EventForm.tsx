@@ -104,6 +104,8 @@ interface EventFormProps {
   mode?: "create" | "edit";
   /** Current event status (edit mode) */
   initialStatus?: "draft" | "published" | "archived";
+  /** The event creator's profile (edit mode — fetched from DB) */
+  initialCreatorProfile?: ClubProfile;
   /** Called on form submit */
   onSubmit?: (data: EventFormData) => Promise<void>;
 }
@@ -153,6 +155,7 @@ export default function EventForm({
   eventId,
   mode = "create",
   initialStatus = "draft",
+  initialCreatorProfile,
 }: EventFormProps) {
   const router = useRouter();
   const profile = useAuthStore((s) => s.profile);
@@ -311,8 +314,9 @@ export default function EventForm({
     setSections((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Build creator profile for the hosts picker (always included)
-  const creatorProfile: ClubProfile = {
+  // In edit mode, use the actual event creator's profile from the DB.
+  // In create mode, fall back to the logged-in user's profile.
+  const creatorProfile: ClubProfile = initialCreatorProfile ?? {
     id: profile?.id ?? "",
     first_name: profile?.first_name ?? "You",
     avatar_url: profile?.avatar_url ?? null,
@@ -337,7 +341,6 @@ export default function EventForm({
       console.error("Auto-save failed:", err);
       // Silent failure — user can still manually save
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, form, carouselImages, sections, draftSaved]);
 
   /* ── Save (manual — persists current state, no status change) ── */

@@ -68,7 +68,7 @@ interface Invite {
   event_id: string;
   inviter_id: string;
   status: string;
-  created_at: string;
+  sort_order: number;
   events: InviteEvent | null;
   inviter: InviterProfile | null;
 }
