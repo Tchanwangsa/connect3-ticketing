@@ -59,9 +59,7 @@ export async function GET(request: NextRequest) {
       .select(
         "id, name, description, start, end, thumbnail, is_online, capacity, category, published_at, status, created_at",
       )
-      .or(
-        `creator_profile_id.eq.${creatorId},collaborators.cs.{${creatorId}}`,
-      )
+      .or(`creator_profile_id.eq.${creatorId},collaborators.cs.{${creatorId}}`)
       .order("created_at", { ascending: false })
       .limit(limit + 1); // fetch one extra to determine hasMore
 

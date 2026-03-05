@@ -442,10 +442,7 @@ export function OrgDashboard() {
                             </Badge>
                           )}
                           {event.category && (
-                            <Badge
-                              variant="secondary"
-                              className="text-[11px]"
-                            >
+                            <Badge variant="secondary" className="text-[11px]">
                               {event.category}
                             </Badge>
                           )}

@@ -43,10 +43,7 @@ export async function PATCH(
       .single();
 
     if (fetchErr || !invite) {
-      return NextResponse.json(
-        { error: "Invite not found" },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "Invite not found" }, { status: 404 });
     }
 
     if (invite.invitee_id !== user.id) {
