@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { SectionData, DragHandleProps } from "../sections";
 import type { ThemeLayout } from "../shared/types";
 import {
@@ -75,6 +85,7 @@ export function EventSectionField({
   lockedBy,
 }: EventSectionFieldProps) {
   const [focused, setFocused] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   /* Click-outside detection (ignores portaled dialogs / popovers) */
@@ -121,7 +132,7 @@ export function EventSectionField({
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => onRemove?.(index)}
+        onClick={() => setConfirmRemove(true)}
         className={cn(
           "h-8 text-muted-foreground hover:text-destructive",
           isDark && "hover:bg-neutral-700",
@@ -194,42 +205,64 @@ export function EventSectionField({
   };
 
   return (
-    <div ref={containerRef} className="relative">
-      {/* Lock overlay */}
-      {mode === "edit" && locked && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/50 backdrop-blur-[1px]">
-          <div className="flex items-center gap-1.5 rounded-full bg-muted/80 px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
-            <Lock className="h-3 w-3" />
-            {lockedBy ?? "Someone"} is editing…
+    <>
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {meta.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete the {meta.title.toLowerCase()} section and all
+              its content. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => onRemove?.(index)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <div ref={containerRef} className="relative">
+        {/* Lock overlay */}
+        {mode === "edit" && locked && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/50 backdrop-blur-[1px]">
+            <div className="flex items-center gap-1.5 rounded-full bg-muted/80 px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+              <Lock className="h-3 w-3" />
+              {lockedBy ?? "Someone"} is editing…
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <SectionWrapper
-        title={meta.title}
-        icon={meta.icon}
-        layout={layout}
-        isDark={isDark}
-        headerLeft={headerLeft}
-        headerRight={headerRight}
-      >
-        <div
-          onClick={handleClick}
-          className={cn(
-            mode === "edit" &&
-              !focused &&
-              !locked &&
-              "cursor-pointer rounded-md p-2 -m-2 transition-colors",
-            mode === "edit" &&
-              !focused &&
-              !locked &&
-              (isDark ? "hover:bg-neutral-700/50" : "hover:bg-muted/50"),
-            mode === "edit" && locked && "cursor-not-allowed",
-          )}
+        <SectionWrapper
+          title={meta.title}
+          icon={meta.icon}
+          layout={layout}
+          isDark={isDark}
+          headerLeft={headerLeft}
+          headerRight={headerRight}
         >
-          {renderContent()}
-        </div>
-      </SectionWrapper>
-    </div>
+          <div
+            onClick={handleClick}
+            className={cn(
+              mode === "edit" &&
+                !focused &&
+                !locked &&
+                "cursor-pointer rounded-md p-2 -m-2 transition-colors",
+              mode === "edit" &&
+                !focused &&
+                !locked &&
+                (isDark ? "hover:bg-neutral-700/50" : "hover:bg-muted/50"),
+              mode === "edit" && locked && "cursor-not-allowed",
+            )}
+          >
+            {renderContent()}
+          </div>
+        </SectionWrapper>
+      </div>
+    </>
   );
 }
