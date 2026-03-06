@@ -157,9 +157,9 @@ export function EventChecklist({
         <button
           onClick={() => setCollapsed(false)}
           className={cn(
-            "flex w-full items-center gap-2 rounded-full border px-4 py-2.5 shadow-lg transition-colors",
+            "flex w-full items-center gap-2 rounded-full border px-4 py-2.5 shadow-lg transition-colors backdrop-blur-xl",
             isDark
-              ? "border-neutral-700/60 bg-neutral-900/60 text-neutral-100 backdrop-blur-xl hover:bg-neutral-800/70"
+              ? "border-neutral-700/60 bg-neutral-900/60 text-neutral-100 hover:bg-neutral-800/70"
               : "bg-background hover:bg-accent",
             allDone && !isDark && "border-green-500/30 bg-green-500/5",
             allDone && isDark && "border-green-500/30 bg-green-900/30",
