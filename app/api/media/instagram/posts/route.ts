@@ -42,47 +42,15 @@ export async function GET() {
       return NextResponse.json({ data: [], slugToProfile: {} });
     }
 
-    /* ── Get post IDs from the junction table for these slugs ── */
-    const { data: clubPosts, error: cpError } = await supabaseAdmin
-      .from("instagram_club_posts")
-      .select("post_id")
-      .in("instagram_slug", slugs);
-
-    if (cpError) {
-      console.error("Instagram club posts lookup error:", cpError);
-      return NextResponse.json({ error: cpError.message }, { status: 500 });
-    }
-
-    const postIdsFromSlugs = new Set((clubPosts ?? []).map((cp) => cp.post_id));
-
-    /* ── Also get posts where this club's slug is in the collaborators array ── */
-    const { data: collabPosts, error: collabError } = await supabaseAdmin
-      .from("instagram_posts")
-      .select("id")
-      .overlaps("collaborators", slugs);
-
-    if (collabError) {
-      console.error("Instagram collab posts lookup error:", collabError);
-      return NextResponse.json({ error: collabError.message }, { status: 500 });
-    }
-
-    for (const cp of collabPosts ?? []) {
-      postIdsFromSlugs.add(cp.id);
-    }
-
-    const allPostIds = Array.from(postIdsFromSlugs);
-
-    if (allPostIds.length === 0) {
-      return NextResponse.json({ data: [], slugToProfile: {} });
-    }
-
-    /* ── Fetch the actual post data ── */
+    /* ── Fetch posts where the club is the creator OR a collaborator ── */
     const { data: posts, error: postsError } = await supabaseAdmin
       .from("instagram_posts")
       .select(
         "id, posted_by, caption, timestamp, location, images, collaborators, fetched_at",
       )
-      .in("id", allPostIds)
+      .or(
+        `posted_by.in.(${slugs.map((s) => `"${s}"`).join(",")}),collaborators.ov.{${slugs.join(",")}}`,
+      )
       .order("timestamp", { ascending: false });
 
     if (postsError) {
