@@ -196,8 +196,8 @@ export default async function EventPage({
     event.ticket_tiers.length === 0 ||
     event.ticket_tiers.every((t) => t.price === 0);
 
-  const acceptedHosts = event.hosts.filter(
-    (h) => (h.status === "accepted" || h.status === "confirmed") && h.profiles,
+  const displayHosts = event.hosts.filter(
+    (h) => (h.status === "accepted" || h.status === "pending") && h.profiles,
   );
 
   return (
@@ -310,7 +310,7 @@ export default async function EventPage({
                 </span>
               </div>
             )}
-            {acceptedHosts.map((h) => (
+            {displayHosts.map((h) => (
               <div key={h.profile_id} className="flex items-center gap-2">
                 {h.profiles?.avatar_url ? (
                   <Image

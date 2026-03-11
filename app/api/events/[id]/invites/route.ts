@@ -142,7 +142,7 @@ export async function GET(
       }
     }
 
-    /* Get all hosts with invite status (not 'confirmed' display-only hosts) */
+    /* Get all hosts with invite status */
     const { data, error } = await supabaseAdmin
       .from("event_hosts")
       .select(
@@ -227,13 +227,13 @@ export async function DELETE(
       );
     }
 
-    /* Only allow cancelling pending or removing accepted */
+    /* Allow cancelling pending, removing accepted, or cleaning up declined */
     const { data: hostRow } = await supabaseAdmin
       .from("event_hosts")
       .select("id, status")
       .eq("event_id", eventId)
       .eq("profile_id", profileId)
-      .in("status", ["pending", "accepted"])
+      .in("status", ["pending", "accepted", "declined"])
       .maybeSingle();
 
     if (!hostRow) {

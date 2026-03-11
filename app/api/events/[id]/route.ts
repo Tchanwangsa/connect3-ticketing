@@ -191,6 +191,24 @@ export async function PUT(
       );
     }
 
+    /* Block publishing if there are pending collaborators */
+    if (eventStatus === "published") {
+      const { data: pendingHosts } = await supabaseAdmin
+        .from("event_hosts")
+        .select("id")
+        .eq("event_id", eventId)
+        .eq("status", "pending");
+      if (pendingHosts && pendingHosts.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Cannot publish: all collaborators must accept their invites first.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     /* ── Build timestamps ── */
     const startTs =
       startDate && startTime
@@ -297,27 +315,9 @@ export async function PUT(
       await supabaseAdmin.from("event_images").insert(rows);
     }
 
-    /* ── Replace display-only (confirmed) hosts, preserve invite-status hosts ── */
-    await supabaseAdmin
-      .from("event_hosts")
-      .delete()
-      .eq("event_id", eventId)
-      .eq("status", "confirmed");
-    const displayHostIds = hostIds.filter(
-      (hid) => hid !== existing.creator_profile_id,
-    );
-    if (displayHostIds.length > 0) {
-      const rows = displayHostIds.map((pid, i) => ({
-        event_id: eventId,
-        profile_id: pid,
-        sort_order: i,
-        status: "confirmed",
-      }));
-      await supabaseAdmin.from("event_hosts").upsert(rows, {
-        onConflict: "event_id,profile_id",
-        ignoreDuplicates: true,
-      });
-    }
+    /* ── Hosts are managed through the invite flow ── */
+    /* Collaborators are added/removed via /api/events/[id]/invites.
+       No display-only host rows are created here. */
 
     /* ── Replace ticket tiers ── */
     await supabaseAdmin
@@ -466,6 +466,25 @@ export async function PATCH(
           payload.published_at = new Date().toISOString();
         }
       }
+
+      /* Block publishing if there are pending collaborators */
+      if (body.status === "published") {
+        const { data: pendingHosts } = await supabaseAdmin
+          .from("event_hosts")
+          .select("id")
+          .eq("event_id", eventId)
+          .eq("status", "pending");
+        if (pendingHosts && pendingHosts.length > 0) {
+          return NextResponse.json(
+            {
+              error:
+                "Cannot publish: all collaborators must accept their invites first.",
+            },
+            { status: 400 },
+          );
+        }
+      }
+
       if (Object.keys(payload).length > 0) {
         const { error } = await supabaseAdmin
           .from("events")
@@ -559,27 +578,9 @@ export async function PATCH(
 
     /* ── hosts ── */
     if (groups.includes("hosts")) {
-      const hostIds: string[] = body.hostIds ?? [];
-      await supabaseAdmin
-        .from("event_hosts")
-        .delete()
-        .eq("event_id", eventId)
-        .eq("status", "confirmed");
-      const displayHostIds = hostIds.filter(
-        (hid) => hid !== existing.creator_profile_id,
-      );
-      if (displayHostIds.length > 0) {
-        const rows = displayHostIds.map((pid, i) => ({
-          event_id: eventId,
-          profile_id: pid,
-          sort_order: i,
-          status: "confirmed",
-        }));
-        await supabaseAdmin.from("event_hosts").upsert(rows, {
-          onConflict: "event_id,profile_id",
-          ignoreDuplicates: true,
-        });
-      }
+      /* Hosts are managed through the invite flow
+         (POST/DELETE /api/events/[id]/invites).
+         The "hosts" group is acknowledged so auto-save considers it synced. */
       updatedGroups.push("hosts");
     }
 

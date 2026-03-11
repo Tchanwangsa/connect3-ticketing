@@ -30,7 +30,7 @@ export async function GET(request: Request) {
          inviter:inviter_id(id, first_name, avatar_url)`,
       )
       .eq("profile_id", user.id)
-      .in("status", ["pending", "accepted", "declined"])
+      .in("status", ["pending", "accepted"])
       .order("sort_order", { ascending: true });
 
     if (statusFilter) {

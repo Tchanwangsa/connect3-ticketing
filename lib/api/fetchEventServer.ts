@@ -197,11 +197,9 @@ export async function checkEventEditAccess(
     return { allowed: true, event };
   }
 
-  // Accepted/confirmed collaborators have access
+  // Accepted collaborators have access
   const isHost = event.hosts.some(
-    (h) =>
-      h.profile_id === userId &&
-      (h.status === "accepted" || h.status === "confirmed"),
+    (h) => h.profile_id === userId && h.status === "accepted",
   );
 
   if (isHost) {

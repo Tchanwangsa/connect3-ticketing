@@ -218,18 +218,9 @@ export async function POST(request: NextRequest) {
       if (error) console.error("event_images insert error:", error);
     }
 
-    /* ── Insert display-only hosts (not including the creator) ── */
-    const displayHostIds = hostIds.filter((id) => id !== user.id);
-    if (displayHostIds.length > 0) {
-      const rows = displayHostIds.map((pid, i) => ({
-        event_id: eventId,
-        profile_id: pid,
-        sort_order: i,
-        status: "confirmed",
-      }));
-      const { error } = await supabaseAdmin.from("event_hosts").insert(rows);
-      if (error) console.error("event_hosts insert error:", error);
-    }
+    /* ── Hosts are managed through the invite flow ── */
+    /* Collaborators are added via POST /api/events/[id]/invites
+       which creates event_hosts rows with status='pending'. */
 
     /* ── Insert ticket tiers ── */
     if (pricing.length > 0) {

@@ -160,12 +160,11 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
 
   /* ── Hosts (owner is NOT in event_hosts, all hosts here are other clubs) ── */
   const hostIds = data.hosts
-    .filter((h) => h.status === "confirmed" || h.status === "accepted")
+    .filter((h) => h.status === "pending" || h.status === "accepted")
     .map((h) => h.profile_id);
   const hostsData: ClubProfile[] = data.hosts
     .filter(
-      (h) =>
-        h.profiles && (h.status === "confirmed" || h.status === "accepted"),
+      (h) => h.profiles && (h.status === "pending" || h.status === "accepted"),
     )
     .map((h) => ({
       id: h.profiles!.id,
