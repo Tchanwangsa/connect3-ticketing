@@ -16,10 +16,46 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000");
+
 export const metadata: Metadata = {
-  title: "Connect3 | Ticketing",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Connect3 | Ticketing",
+    template: "%s | Connect3",
+  },
   description:
-    "The all-in-one ticketing solution for clubs. Simple, flexible, and powerful.",
+    "The all-in-one ticketing solution for clubs. Create, manage and sell event tickets — simple, flexible, and powerful.",
+  keywords: [
+    "ticketing",
+    "events",
+    "club events",
+    "university events",
+    "event management",
+    "tickets",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: "Connect3 Ticketing",
+    title: "Connect3 | Ticketing",
+    description:
+      "The all-in-one ticketing solution for clubs. Create, manage and sell event tickets.",
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Connect3 | Ticketing",
+    description:
+      "The all-in-one ticketing solution for clubs. Create, manage and sell event tickets.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
