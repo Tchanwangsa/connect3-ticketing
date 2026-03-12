@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { useIntersection } from "@/lib/hooks/useIntersection";
@@ -288,10 +295,10 @@ export function EventsListContent({ clubId }: EventsListContentProps) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * DashboardEventsPage — page shell with header + club selector.
+ * DashboardEventsContent — page content that uses search params.
  * ────────────────────────────────────────────────────────────────────────── */
 
-export default function DashboardEventsPage() {
+function DashboardEventsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialClubId = searchParams.get("club_id");
@@ -366,5 +373,25 @@ export default function DashboardEventsPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * DashboardEventsPage — page shell with Suspense wrapping.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export default function DashboardEventsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-5xl px-6 py-8">
+          <div className="flex justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      }
+    >
+      <DashboardEventsContent />
+    </Suspense>
   );
 }
