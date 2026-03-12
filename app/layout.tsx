@@ -5,6 +5,7 @@ import { NotFoundProvider } from "@/components/providers/NotFoundProvider";
 import { NavbarWrapper } from "@/components/layout/NavbarWrapper";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -68,13 +69,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <NotFoundProvider>
-            <NavbarWrapper />
-            {children}
-          </NotFoundProvider>
-        </AuthProvider>
-        <Toaster />
+        <TooltipProvider>
+          <AuthProvider>
+            <NotFoundProvider>
+              <NavbarWrapper />
+              {children}
+            </NotFoundProvider>
+          </AuthProvider>
+          <Toaster />
+        </TooltipProvider>
       </body>
     </html>
   );

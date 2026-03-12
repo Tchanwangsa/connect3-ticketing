@@ -18,6 +18,8 @@ import {
   fetchEventServer,
   getAllPublishedEventIds,
 } from "@/lib/api/fetchEventServer";
+import { TicketingButton } from "@/components/events/TicketingButton";
+import type { ThemeAccent } from "@/components/events/shared/types";
 
 /* ── Static generation ─────────────────────────────────────────── */
 
@@ -462,6 +464,14 @@ export default async function EventPage({
           </>
         )}
       </article>
+
+      {/* Sticky ticketing button (preview mode — only shows if ticketing is enabled) */}
+      <TicketingButton
+        eventId={id}
+        mode="preview"
+        accent={(event.theme?.accent as ThemeAccent) ?? "none"}
+        accentCustom={event.theme?.accent_custom ?? undefined}
+      />
     </>
   );
 }

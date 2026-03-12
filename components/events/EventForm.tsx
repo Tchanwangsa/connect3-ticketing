@@ -39,6 +39,7 @@ import {
 import { ImageManagerDialog } from "./create/ImageManagerDialog";
 import { ThemeDialog } from "./create/ThemeDialog";
 import { SectionWrapper } from "./preview/SectionWrapper";
+import { TicketingButton } from "./TicketingButton";
 
 /* ── Other ── */
 import {
@@ -72,6 +73,7 @@ import { patchEvent, type FieldGroup } from "@/lib/api/patchEvent";
 import { fetchEvent } from "@/lib/api/fetchEvent";
 import { useFieldAutoSave } from "@/lib/hooks/useFieldAutoSave";
 import { useEventRealtime } from "@/lib/hooks/useEventRealtime";
+import { useDocumentDark } from "@/lib/hooks/useDocumentDark";
 import {
   DndContext,
   closestCenter,
@@ -335,6 +337,7 @@ export default function EventForm({
   /* ── Derived theme values ── */
   const colors = useMemo(() => getThemeColors(theme.mode), [theme.mode]);
   const isDark = colors.isDark;
+  useDocumentDark(isDark);
 
   const pageBgClass = colors.pageBg;
   const pageTextClass = colors.text;
@@ -1150,6 +1153,19 @@ export default function EventForm({
           dismissed={dismissed}
           onDismissChange={setDismissed}
           isDark={isDark}
+        />
+      )}
+
+      {/* Sticky ticketing button */}
+      {eventId && (
+        <TicketingButton
+          eventId={eventId}
+          mode={previewMode ? "preview" : "edit"}
+          accent={theme.accent}
+          accentCustom={theme.accentCustom}
+          isDark={isDark}
+          draft={eventStatus === "draft"}
+          hasTiers={form.pricing.length > 0}
         />
       )}
     </div>
