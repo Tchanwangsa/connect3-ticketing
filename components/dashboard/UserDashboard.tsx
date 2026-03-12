@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationsFeed } from "@/components/dashboard/NotificationsFeed";
-import { ClubSelector } from "@/components/dashboard/ClubSelector";
-import { ClubEventsSection } from "@/components/dashboard/ClubEventsSection";
 import { Separator } from "@/components/ui/separator";
 import {
   Ticket,
@@ -13,9 +14,12 @@ import {
   ShoppingBag,
   Loader2,
   Building2,
+  ArrowRight,
 } from "lucide-react";
 
 /* ── Types ── */
+import { EventCardDetails } from "@/lib/types/events";
+import { EventDisplayCard } from "./EventDisplayCard";
 
 interface ClubProfile {
   id: string;
@@ -31,19 +35,25 @@ interface ClubAdminRow {
   status: string;
   created_at: string;
   club: ClubProfile | null;
-  events?: unknown[];
 }
 
+const PREVIEW_COUNT = 3;
+
 export function UserDashboard() {
+  const router = useRouter();
   const { user } = useAuthStore();
 
   /* ── Clubs state ── */
   const [clubs, setClubs] = useState<ClubAdminRow[]>([]);
   const [clubsLoading, setClubsLoading] = useState(true);
-  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const hasFetchedClubs = useRef(false);
 
-  /* ── Fetch clubs (SWR: only spinner on first load, silent revalidate) ── */
+  /* ── Recent events (aggregated across all clubs) ── */
+  const [recentEvents, setRecentEvents] = useState<EventCardDetails[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const hasFetchedEvents = useRef(false);
+
+  /* ── Fetch clubs ── */
   const fetchClubs = useCallback(async () => {
     if (!user) return;
     if (!hasFetchedClubs.current) setClubsLoading(true);
@@ -51,12 +61,7 @@ export function UserDashboard() {
       const res = await fetch("/api/clubs/my-clubs");
       if (res.ok) {
         const { data } = await res.json();
-        const rows: ClubAdminRow[] = data ?? [];
-        setClubs(rows);
-        // Auto‑select first club if none selected
-        if (rows.length > 0 && !selectedClubId) {
-          setSelectedClubId(rows[0].club_id);
-        }
+        setClubs(data ?? []);
       }
     } catch (err) {
       console.error("Failed to fetch clubs:", err);
@@ -64,20 +69,47 @@ export function UserDashboard() {
       hasFetchedClubs.current = true;
       setClubsLoading(false);
     }
-  }, [user, selectedClubId]);
+  }, [user]);
 
   useEffect(() => {
     fetchClubs();
   }, [fetchClubs]);
 
+  /* ── Fetch recent events across all clubs ── */
+  const fetchRecentEvents = useCallback(async () => {
+    if (!user) return;
+    if (!hasFetchedEvents.current) setEventsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        recent: "true",
+        limit: String(PREVIEW_COUNT),
+      });
+      const res = await fetch(`/api/events?${params}`);
+      if (res.ok) {
+        const { data } = await res.json();
+        setRecentEvents(data ?? []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch recent events:", err);
+    } finally {
+      hasFetchedEvents.current = true;
+      setEventsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchRecentEvents();
+  }, [fetchRecentEvents]);
+
   /* Re-fetch silently on window focus */
   useEffect(() => {
-    const onFocus = () => fetchClubs();
+    const onFocus = () => {
+      fetchClubs();
+      fetchRecentEvents();
+    };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [fetchClubs]);
-
-  const selectedClub = clubs.find((c) => c.club_id === selectedClubId);
+  }, [fetchClubs, fetchRecentEvents]);
 
   return (
     <div className="space-y-8">
@@ -132,7 +164,7 @@ export function UserDashboard() {
         </Card>
       </div>
 
-      {/* ── Clubs I Admin ── */}
+      {/* ── Manage Clubs ── */}
       {clubsLoading && !hasFetchedClubs.current ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -140,28 +172,68 @@ export function UserDashboard() {
       ) : clubs.length > 0 ? (
         <>
           <Separator />
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-muted-foreground" />
-                <h2 className="text-lg font-semibold">Clubs I Admin</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold">Manage Clubs</h2>
+              <div className="flex -space-x-2">
+                {clubs.map((c) => {
+                  const p = c.club;
+                  return (
+                    <Avatar
+                      key={c.id}
+                      className="h-7 w-7 border-2 border-background"
+                    >
+                      {p?.avatar_url && (
+                        <AvatarImage src={p.avatar_url} alt={p.first_name} />
+                      )}
+                      <AvatarFallback className="text-[9px]">
+                        {p?.first_name?.charAt(0).toUpperCase() ?? "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                  );
+                })}
               </div>
-              <ClubSelector
-                clubs={clubs}
-                selectedClubId={selectedClubId}
-                onSelect={setSelectedClubId}
-              />
             </div>
-
-            {selectedClub && selectedClub.club && (
-              <ClubEventsSection
-                clubId={selectedClub.club_id}
-                clubName={selectedClub.club.first_name}
-              />
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-muted-foreground"
+              onClick={() => router.push("/dashboard/manage")}
+            >
+              View all
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
         </>
       ) : null}
+
+      {/* ── Recent Events (across all clubs) ── */}
+      <div className="space-y-3">
+        {eventsLoading && !hasFetchedEvents.current ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : recentEvents.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <CalendarDays className="h-10 w-10 text-muted-foreground/50" />
+              <div>
+                <p className="text-sm font-medium">No recent events</p>
+                <p className="text-xs text-muted-foreground">
+                  Events you edit will appear here.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-3">
+            {recentEvents.map((event) => (
+              <EventDisplayCard key={event.id} event={event} />
+            ))}
+          </div>
+        )}
+      </div>
 
       <Separator />
 

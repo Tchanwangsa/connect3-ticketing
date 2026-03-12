@@ -5,13 +5,25 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
  * Returns the admin row if found, null otherwise.
  */
 export async function getClubAdminRow(clubId: string, userId: string) {
-  const { data } = await supabaseAdmin
+  console.log(
+    "[getClubAdminRow] querying club_admins — clubId:",
+    clubId,
+    "userId:",
+    userId,
+  );
+  const { data, error } = await supabaseAdmin
     .from("club_admins")
     .select("id, club_id, user_id, role, status")
     .eq("club_id", clubId)
     .eq("user_id", userId)
     .eq("status", "accepted")
     .maybeSingle();
+  console.log(
+    "[getClubAdminRow] data:",
+    JSON.stringify(data),
+    "error:",
+    JSON.stringify(error),
+  );
   return data;
 }
 
@@ -87,6 +99,27 @@ export async function checkEventPermission(
         isClubAdmin: true,
         creatorProfileId,
       };
+    }
+  }
+
+  /* Check if user is a club admin for any collaborator org on the event */
+  const { data: allHosts } = await supabaseAdmin
+    .from("event_hosts")
+    .select("profile_id")
+    .eq("event_id", eventId)
+    .eq("status", "accepted");
+
+  if (allHosts && allHosts.length > 0) {
+    for (const host of allHosts) {
+      const adminRow = await getClubAdminRow(host.profile_id, userId);
+      if (adminRow) {
+        return {
+          isCreator: false,
+          isCollaborator: false,
+          isClubAdmin: true,
+          creatorProfileId,
+        };
+      }
     }
   }
 

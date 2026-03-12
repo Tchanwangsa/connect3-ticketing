@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getClubAdminRow } from "@/lib/auth/clubAdmin";
 
 /**
  * Minimal event data for the public event page (server-side only).
@@ -183,17 +184,27 @@ export async function checkEventEditAccess(
   | { allowed: false; reason: "not_authenticated" | "not_found" | "forbidden" }
 > {
   if (!userId) {
+    console.log("[checkEventEditAccess] No userId — not authenticated");
     return { allowed: false, reason: "not_authenticated" };
   }
+
+  console.log("[checkEventEditAccess] eventId:", eventId, "userId:", userId);
 
   const event = await fetchEventServer(eventId, { requirePublished: false });
 
   if (!event) {
+    console.log("[checkEventEditAccess] Event not found");
     return { allowed: false, reason: "not_found" };
   }
 
+  console.log(
+    "[checkEventEditAccess] event.creator_profile_id:",
+    event.creator_profile_id,
+  );
+
   // Creator always has access
   if (event.creator_profile_id === userId) {
+    console.log("[checkEventEditAccess] User is creator → allowed");
     return { allowed: true, event };
   }
 
@@ -203,8 +214,54 @@ export async function checkEventEditAccess(
   );
 
   if (isHost) {
+    console.log("[checkEventEditAccess] User is accepted host → allowed");
     return { allowed: true, event };
   }
 
+  // Club admins have access — check both the creator org AND any collaborator orgs
+  // 1) Check if the event creator is a club the user admins
+  if (event.creator_profile_id) {
+    console.log(
+      "[checkEventEditAccess] Checking club admin for creator — clubId:",
+      event.creator_profile_id,
+      "userId:",
+      userId,
+    );
+    const adminRow = await getClubAdminRow(event.creator_profile_id, userId);
+    console.log(
+      "[checkEventEditAccess] creator adminRow:",
+      JSON.stringify(adminRow),
+    );
+    if (adminRow) {
+      console.log(
+        "[checkEventEditAccess] User is club admin of creator → allowed",
+      );
+      return { allowed: true, event };
+    }
+  }
+
+  // 2) Check if any accepted collaborator is a club the user admins
+  const collaboratorIds = event.hosts
+    .filter((h) => h.status === "accepted")
+    .map((h) => h.profile_id);
+  if (collaboratorIds.length > 0) {
+    console.log(
+      "[checkEventEditAccess] Checking club admin for collaborators:",
+      collaboratorIds,
+    );
+    for (const collabId of collaboratorIds) {
+      const adminRow = await getClubAdminRow(collabId, userId);
+      if (adminRow) {
+        console.log(
+          "[checkEventEditAccess] User is admin of collaborator club",
+          collabId,
+          "→ allowed",
+        );
+        return { allowed: true, event };
+      }
+    }
+  }
+
+  console.log("[checkEventEditAccess] No match → forbidden");
   return { allowed: false, reason: "forbidden" };
 }

@@ -40,6 +40,11 @@ interface SectionPayload {
      - status: filter by event status ("draft" | "published" | "archived")
      - cursor: ISO timestamp for cursor-based pagination (returns events before this)
      - limit: max results (default: 20)
+     - ids: comma-separated event IDs — when provided with club_id, returns only
+             matching events that belong to the club (no pagination, preserves order)
+     - recent: "true" — returns the user's recently edited events.
+               If club_id is provided, scoped to that club.
+               If no club_id, returns across ALL the user's events.
 ================================================================ */
 export async function GET(request: NextRequest) {
   try {
@@ -49,6 +54,57 @@ export async function GET(request: NextRequest) {
     const statusFilter = searchParams.get("status");
     const cursor = searchParams.get("cursor");
     const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const idsParam = searchParams.get("ids"); // comma-separated event IDs
+    const recentParam = searchParams.get("recent");
+
+    /* ── Mode 0: Cross-club recent edits (no club_id required) ── */
+    if (recentParam === "true" && !clubId) {
+      const supabase = await createClient();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const { data: recentRows, error: recentErr } = await supabaseAdmin
+        .from("recent_event_edits")
+        .select("event_id")
+        .eq("user_id", user.id)
+        .order("edited_at", { ascending: false })
+        .limit(limit);
+
+      if (recentErr) {
+        console.error("Recent edits fetch error:", recentErr);
+        return NextResponse.json({ error: recentErr.message }, { status: 500 });
+      }
+
+      const recentIds = (recentRows ?? []).map((r) => r.event_id);
+      if (recentIds.length === 0) {
+        return NextResponse.json({ data: [] });
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("events")
+        .select(
+          "id, name, description, start, end, thumbnail, is_online, capacity, category, published_at, status, created_at, creator_profile_id",
+        )
+        .in("id", recentIds);
+
+      if (error) {
+        console.error("Events recent-fetch error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // Preserve recent order
+      const byId = new Map((data ?? []).map((e) => [e.id, e]));
+      const ordered = recentIds
+        .filter((id) => byId.has(id))
+        .map((id) => byId.get(id)!);
+
+      return NextResponse.json({ data: ordered });
+    }
 
     /* ── Mode 1: Club admin fetching a specific club's events ── */
     if (clubId) {
@@ -78,6 +134,100 @@ export async function GET(request: NextRequest) {
         .eq("profile_id", clubId)
         .eq("status", "accepted");
       const collabEventIds = (collabRows ?? []).map((r) => r.event_id);
+
+      /* ── Sub-mode: recently edited events for this user + club ── */
+      if (recentParam === "true") {
+        // Get recent event IDs for the current user, ordered by edited_at desc
+        const { data: recentRows, error: recentErr } = await supabaseAdmin
+          .from("recent_event_edits")
+          .select("event_id")
+          .eq("user_id", user.id)
+          .order("edited_at", { ascending: false })
+          .limit(20);
+
+        if (recentErr) {
+          console.error("Recent views fetch error:", recentErr);
+          return NextResponse.json(
+            { error: recentErr.message },
+            { status: 500 },
+          );
+        }
+
+        const recentIds = (recentRows ?? []).map((r) => r.event_id);
+        if (recentIds.length === 0) {
+          return NextResponse.json({ data: [] });
+        }
+
+        // Fetch those events, but only the ones that belong to this club
+        const clubEventFilter =
+          collabEventIds.length > 0
+            ? `creator_profile_id.eq.${clubId},id.in.(${collabEventIds.join(",")})`
+            : `creator_profile_id.eq.${clubId}`;
+
+        const { data, error } = await supabaseAdmin
+          .from("events")
+          .select(
+            "id, name, description, start, end, thumbnail, is_online, capacity, category, published_at, status, created_at, creator_profile_id",
+          )
+          .in("id", recentIds)
+          .or(clubEventFilter);
+
+        if (error) {
+          console.error("Events recent-fetch error:", error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        // Preserve the recent order (most recently viewed first)
+        const byId = new Map((data ?? []).map((e) => [e.id, e]));
+        const ordered = recentIds
+          .filter((id) => byId.has(id))
+          .map((id) => byId.get(id)!)
+          .slice(0, limit);
+
+        return NextResponse.json({ data: ordered });
+      }
+
+      /* ── Sub-mode: fetch specific event IDs ── */
+      if (idsParam) {
+        const requestedIds = idsParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .slice(0, 50); // cap
+
+        if (requestedIds.length === 0) {
+          return NextResponse.json({ data: [] });
+        }
+
+        // Only return events that belong to this club AND match the IDs
+        const clubEventFilter =
+          collabEventIds.length > 0
+            ? `creator_profile_id.eq.${clubId},id.in.(${collabEventIds.join(",")})`
+            : `creator_profile_id.eq.${clubId}`;
+
+        const { data, error } = await supabaseAdmin
+          .from("events")
+          .select(
+            "id, name, description, start, end, thumbnail, is_online, capacity, category, published_at, status, created_at, creator_profile_id",
+          )
+          .in("id", requestedIds)
+          .or(clubEventFilter);
+
+        if (error) {
+          console.error("Events ids-fetch error:", error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        // Preserve the order of the requested IDs
+        const byId = new Map((data ?? []).map((e) => [e.id, e]));
+        const ordered = requestedIds
+          .filter((id) => byId.has(id))
+          .map((id) => byId.get(id)!);
+
+        return NextResponse.json({ data: ordered });
+      }
+
+      /* ── Sub-mode: paginated list ── */
 
       let query = supabaseAdmin
         .from("events")

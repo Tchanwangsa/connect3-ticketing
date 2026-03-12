@@ -22,6 +22,10 @@ export default function EditEventClient({ eventId }: { eventId: string }) {
     fetchEvent(eventId)
       .then((result) => {
         setData(result);
+        // Record this event as recently viewed (fire-and-forget)
+        fetch(`/api/events/${eventId}/view`, { method: "POST" }).catch(
+          () => {},
+        );
       })
       .catch((err) => {
         console.error("Failed to load event:", err);

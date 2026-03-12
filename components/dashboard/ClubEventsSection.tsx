@@ -4,17 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIntersection } from "@/lib/hooks/useIntersection";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateEventModal } from "@/components/events/CreateEventModal";
-import Image from "next/image";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -28,14 +20,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   CalendarDays,
-  Globe,
   Loader2,
-  MapPin,
   Pencil,
   Plus,
   Ticket,
   Trash2,
 } from "lucide-react";
+import { EventDisplayCard } from "./EventDisplayCard";
 
 /* ── Types ── */
 
@@ -163,15 +154,6 @@ export function ClubEventsSection({
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "TBA";
-    return new Date(dateStr).toLocaleDateString("en-AU", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
   const emptyLabel = useMemo(() => {
     if (tab === "published") return "No published events";
     if (tab === "draft") return "No drafts";
@@ -226,56 +208,10 @@ export function ClubEventsSection({
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             {events.map((event) => (
-              <Card key={event.id} className="overflow-hidden">
-                {event.thumbnail && (
-                  <div className="aspect-video w-full overflow-hidden">
-                    <Image
-                      src={event.thumbnail}
-                      alt={event.name ?? "Event"}
-                      width={400}
-                      height={225}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                )}
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base leading-tight">
-                      {event.name || "Untitled Event"}
-                    </CardTitle>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {event.status === "draft" && (
-                        <Badge variant="outline" className="text-[11px]">
-                          Draft
-                        </Badge>
-                      )}
-                      {event.status === "published" && (
-                        <Badge variant="default" className="text-[11px]">
-                          Published
-                        </Badge>
-                      )}
-                      {event.category && (
-                        <Badge variant="secondary" className="text-[11px]">
-                          {event.category}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <CardDescription className="flex items-center gap-1 text-xs">
-                    <CalendarDays className="h-3 w-3" />
-                    {formatDate(event.start)}
-                    {event.is_online ? (
-                      <span className="ml-2 flex items-center gap-1">
-                        <Globe className="h-3 w-3" /> Online
-                      </span>
-                    ) : (
-                      <span className="ml-2 flex items-center gap-1">
-                        <MapPin className="h-3 w-3" /> In-person
-                      </span>
-                    )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
+              <EventDisplayCard
+                key={event.id}
+                event={event}
+                content={
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -310,8 +246,8 @@ export function ClubEventsSection({
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                }
+              />
             ))}
           </div>
 

@@ -62,8 +62,19 @@ export async function GET(request: NextRequest) {
       let query = supabase
         .from(table)
         .select(select)
-        .ilike("first_name", `%${search}%`)
         .range(offset, offset + limit - 1);
+
+      // Split the search into words and require each word to match
+      // either first_name or last_name.
+      // e.g. "john d" → (first_name ilike %john% OR last_name ilike %john%)
+      //                  AND (first_name ilike %d% OR last_name ilike %d%)
+      const words = search.trim().split(/\s+/).filter(Boolean);
+      for (const word of words) {
+        const escaped = word.replace(/[%_]/g, "\\$&"); // escape SQL wildcards
+        query = query.or(
+          `first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%`,
+        );
+      }
 
       // Apply extra equality filters
       for (const [key, value] of Object.entries(filters)) {

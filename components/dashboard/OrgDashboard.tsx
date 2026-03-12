@@ -4,29 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CreateEventModal } from "@/components/events/CreateEventModal";
 import { NotificationsFeed } from "@/components/dashboard/NotificationsFeed";
-import { AdminManagePanel } from "@/components/dashboard/AdminManagePanel";
-import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Separator } from "@/components/ui/separator";
-import Image from "next/image";
-import {
-  ArrowRight,
-  CalendarDays,
-  Globe,
-  Loader2,
-  MapPin,
-  Plus,
-  Users,
-} from "lucide-react";
+import { ArrowRight, CalendarDays, Loader2, Plus, Users } from "lucide-react";
+import { EventDisplayCard } from "./EventDisplayCard";
 
 interface Event {
   id: string;
@@ -44,7 +29,19 @@ interface Event {
   creator_profile_id: string;
 }
 
+interface AdminPreview {
+  id: string;
+  status: string;
+  profiles: {
+    id: string;
+    first_name: string;
+    last_name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
 const PREVIEW_COUNT = 3;
+const ADMIN_PREVIEW_COUNT = 5;
 
 export function OrgDashboard() {
   const router = useRouter();
@@ -53,7 +50,11 @@ export function OrgDashboard() {
   const [initialLoading, setInitialLoading] = useState(true);
   const hasFetchedOnce = useRef(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [adminModalOpen, setAdminModalOpen] = useState(false);
+
+  /* ── Admin preview state ── */
+  const [adminPreviews, setAdminPreviews] = useState<AdminPreview[]>([]);
+  const [adminCount, setAdminCount] = useState(0);
+  const hasFetchedAdmins = useRef(false);
 
   /* ── Fetch first few events (SWR: show stale, revalidate silently) ── */
   const fetchPreview = useCallback(async () => {
@@ -63,6 +64,21 @@ export function OrgDashboard() {
     if (!hasFetchedOnce.current) setInitialLoading(true);
 
     try {
+      // Try recent events first (sorted by last edit)
+      const recentParams = new URLSearchParams({
+        recent: "true",
+        limit: String(PREVIEW_COUNT),
+      });
+      const recentRes = await fetch(`/api/events?${recentParams}`);
+      if (recentRes.ok) {
+        const { data } = await recentRes.json();
+        if ((data ?? []).length > 0) {
+          setEvents(data);
+          return;
+        }
+      }
+
+      // Fallback: fetch latest by created_at
       const params = new URLSearchParams({
         creator_id: user.id,
         limit: String(PREVIEW_COUNT),
@@ -83,21 +99,38 @@ export function OrgDashboard() {
     fetchPreview();
   }, [fetchPreview]);
 
+  /* ── Fetch admin preview ── */
+  const fetchAdminPreview = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/clubs/${user.id}/admins`);
+      if (!res.ok) return;
+      const { data } = await res.json();
+      const active = (data ?? []).filter(
+        (a: AdminPreview) => a.status === "accepted" || a.status === "pending",
+      );
+      setAdminCount(active.length);
+      setAdminPreviews(active.slice(0, ADMIN_PREVIEW_COUNT));
+    } catch {
+      /* silent */
+    } finally {
+      hasFetchedAdmins.current = true;
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchAdminPreview();
+  }, [fetchAdminPreview]);
+
   /* Re-fetch silently when window regains focus */
   useEffect(() => {
-    const onFocus = () => fetchPreview();
+    const onFocus = () => {
+      fetchPreview();
+      fetchAdminPreview();
+    };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [fetchPreview]);
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "TBA";
-    return new Date(dateStr).toLocaleDateString("en-AU", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  }, [fetchPreview, fetchAdminPreview]);
 
   return (
     <div className="space-y-6">
@@ -123,7 +156,7 @@ export function OrgDashboard() {
       {/* Notifications (collab invites) */}
       <NotificationsFeed mode="org" />
 
-      {/* Manage admins — trigger + modal */}
+      {/* Club admins preview */}
       {user && (
         <>
           <Separator />
@@ -131,27 +164,60 @@ export function OrgDashboard() {
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold">Club Admins</h2>
+              {adminCount > 0 && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {adminCount}
+                </Badge>
+              )}
             </div>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-1.5"
-              onClick={() => setAdminModalOpen(true)}
+              className="gap-1 text-muted-foreground"
+              onClick={() => router.push("/dashboard/club")}
             >
-              <Users className="h-3.5 w-3.5" />
-              Manage
+              View more
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
 
-          <ResponsiveModal
-            open={adminModalOpen}
-            onOpenChange={setAdminModalOpen}
-            title="Manage Club Admins"
-            description="Invite users as admins to help manage your club's events."
-            className="sm:max-w-lg"
-          >
-            <AdminManagePanel clubId={user.id} />
-          </ResponsiveModal>
+          {hasFetchedAdmins.current && adminPreviews.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <div className="flex -space-x-2">
+                {adminPreviews.map((admin) => {
+                  const p = admin.profiles;
+                  return (
+                    <Avatar
+                      key={admin.id}
+                      className="h-8 w-8 border-2 border-background"
+                    >
+                      {p?.avatar_url && (
+                        <AvatarImage src={p.avatar_url} alt={p.first_name} />
+                      )}
+                      <AvatarFallback className="text-[10px]">
+                        {p?.first_name?.charAt(0).toUpperCase() ?? "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                  );
+                })}
+              </div>
+              {adminCount > ADMIN_PREVIEW_COUNT && (
+                <span className="text-xs text-muted-foreground">
+                  +{adminCount - ADMIN_PREVIEW_COUNT} more
+                </span>
+              )}
+            </div>
+          ) : hasFetchedAdmins.current ? (
+            <p className="text-xs text-muted-foreground">
+              No admins yet —{" "}
+              <button
+                className="underline hover:text-foreground"
+                onClick={() => router.push("/dashboard/club")}
+              >
+                invite some
+              </button>
+            </p>
+          ) : null}
         </>
       )}
 
@@ -192,48 +258,7 @@ export function OrgDashboard() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-3">
           {events.slice(0, PREVIEW_COUNT).map((event) => (
-            <Card
-              key={event.id}
-              className="cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
-              onClick={() => router.push(`/events/${event.id}/edit`)}
-            >
-              {event.thumbnail && (
-                <div className="aspect-video w-full overflow-hidden">
-                  <Image
-                    src={event.thumbnail}
-                    alt={event.name ?? "Event"}
-                    width={400}
-                    height={225}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              )}
-              <CardHeader className="p-3 pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-sm leading-tight line-clamp-1">
-                    {event.name || "Untitled Event"}
-                  </CardTitle>
-                  {event.status === "draft" && (
-                    <Badge variant="outline" className="text-[10px] shrink-0">
-                      Draft
-                    </Badge>
-                  )}
-                </div>
-                <CardDescription className="flex items-center gap-1 text-[11px]">
-                  <CalendarDays className="h-3 w-3" />
-                  {formatDate(event.start)}
-                  {event.is_online ? (
-                    <span className="ml-1.5 flex items-center gap-0.5">
-                      <Globe className="h-3 w-3" /> Online
-                    </span>
-                  ) : (
-                    <span className="ml-1.5 flex items-center gap-0.5">
-                      <MapPin className="h-3 w-3" /> In-person
-                    </span>
-                  )}
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            <EventDisplayCard key={event.id} event={event} />
           ))}
         </div>
       )}
