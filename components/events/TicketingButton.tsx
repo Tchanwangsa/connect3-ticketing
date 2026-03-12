@@ -108,53 +108,53 @@ export function TicketingButton({
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="w-full">
-          {/* Mobile: full-width footer bar */}
-          <div
-            className={cn(
-              "flex w-full items-center justify-center border-t px-4 py-3 backdrop-blur-xl sm:hidden",
-              isDark
-                ? "bg-neutral-800/90 border-neutral-700"
-                : "bg-background/90 border-border",
-            )}
-          >
-            <Button
-              size="lg"
+            {/* Mobile: full-width footer bar */}
+            <div
               className={cn(
-                "w-full gap-2 rounded-lg",
-                !accentStyle &&
-                  "bg-foreground text-background hover:bg-foreground/90",
+                "flex w-full items-center justify-center border-t px-4 py-3 backdrop-blur-xl sm:hidden",
+                isDark
+                  ? "bg-neutral-800/90 border-neutral-700"
+                  : "bg-background/90 border-border",
               )}
-              style={accentStyle}
-              onClick={() => router.push(href)}
-              disabled={disabled}
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
-            </Button>
-          </div>
+              <Button
+                size="lg"
+                className={cn(
+                  "w-full gap-2 rounded-lg",
+                  !accentStyle &&
+                    "bg-foreground text-background hover:bg-foreground/90",
+                )}
+                style={accentStyle}
+                onClick={() => router.push(href)}
+                disabled={disabled}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
+              </Button>
+            </div>
 
-          {/* Desktop: card-style pill */}
-          <div
-            className={cn(
-              "hidden sm:block rounded-xl border px-3 py-2 shadow-lg backdrop-blur-xl",
-              isDark
-                ? "bg-neutral-800/80 border-neutral-700/60"
-                : "bg-background/80 border-border/60",
-            )}
-          >
-            <Button
-              size="lg"
+            {/* Desktop: card-style pill */}
+            <div
               className={cn(
-                "gap-2 rounded-lg px-10",
-                !accentStyle &&
-                  "bg-foreground text-background hover:bg-foreground/90",
+                "hidden sm:block rounded-xl border px-3 py-2 shadow-lg backdrop-blur-xl",
+                isDark
+                  ? "bg-neutral-800/80 border-neutral-700/60"
+                  : "bg-background/80 border-border/60",
               )}
-              style={accentStyle}
-              onClick={() => router.push(href)}
-              disabled={disabled}
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
-            </Button>
-          </div>
+              <Button
+                size="lg"
+                className={cn(
+                  "gap-2 rounded-lg px-10",
+                  !accentStyle &&
+                    "bg-foreground text-background hover:bg-foreground/90",
+                )}
+                style={accentStyle}
+                onClick={() => router.push(href)}
+                disabled={disabled}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
+              </Button>
+            </div>
           </div>
         </TooltipTrigger>
         {tooltip && <TooltipContent sideOffset={4}>{tooltip}</TooltipContent>}
