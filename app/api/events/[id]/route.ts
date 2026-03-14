@@ -3,12 +3,14 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { checkEventPermission } from "@/lib/auth/clubAdmin";
 import { buildUtcTimestamp } from "@/lib/utils/timezone";
+import {
+  validateTicketTierInput,
+  validateEventCapacity,
+  type TicketTierInput,
+} from "@/lib/utils/ticketPricing";
 
 /* ── Types ── */
-interface TicketTierPayload {
-  label: string;
-  price: number;
-}
+interface TicketTierPayload extends TicketTierInput {}
 interface EventLinkPayload {
   url: string;
   title: string;
@@ -160,12 +162,18 @@ export async function PUT(
     const tags: string[] = body.tags ?? [];
     const hostIds: string[] = body.hostIds ?? [];
     const pricing: TicketTierPayload[] = body.pricing ?? [];
+    const eventCapacity: number | null = body.eventCapacity ?? null;
     const links: EventLinkPayload[] = body.links ?? [];
     const theme: ThemePayload | null = body.theme ?? null;
     const location: LocationPayload | null = body.location ?? null;
     const imageUrls: string[] = body.imageUrls ?? [];
     const sections: SectionPayload[] = body.sections ?? [];
     const eventStatus: string | undefined = body.status;
+
+    const capError = validateEventCapacity(eventCapacity);
+    if (capError) {
+      return NextResponse.json({ error: capError }, { status: 400 });
+    }
 
     /* Name is required only when publishing */
     if (eventStatus === "published" && !name) {
@@ -269,6 +277,7 @@ export async function PUT(
       category,
       tags,
       timezone,
+      event_capacity: eventCapacity,
     };
     if (eventStatus) {
       updatePayload.status = eventStatus;
@@ -303,10 +312,28 @@ export async function PUT(
       .delete()
       .eq("event_id", eventId);
     if (pricing.length > 0) {
+      for (const tier of pricing) {
+        const validationError = validateTicketTierInput(tier);
+        if (validationError) {
+          return NextResponse.json(
+            { error: validationError },
+            { status: 400 },
+          );
+        }
+      }
+
       const rows = pricing.map((t, i) => ({
         event_id: eventId,
-        label: t.label,
+        type: t.type,
+        name: t.name,
         price: t.price,
+        quantity: t.quantity ?? null,
+        offer_start: buildUtcTimestamp(
+          t.offerStartDate,
+          t.offerStartTime,
+          timezone,
+        ),
+        offer_end: buildUtcTimestamp(t.offerEndDate, t.offerEndTime, timezone),
         sort_order: i,
       }));
       await supabaseAdmin.from("event_ticket_tiers").insert(rows);
@@ -560,20 +587,65 @@ export async function PATCH(
     /* ── pricing ── */
     if (groups.includes("pricing")) {
       const pricing: TicketTierPayload[] = body.pricing ?? [];
+      let pricingTimeZone: string | null = body.timezone ?? null;
+      if (!pricingTimeZone) {
+        const { data: eventRow } = await supabaseAdmin
+          .from("events")
+          .select("timezone")
+          .eq("id", eventId)
+          .single();
+        pricingTimeZone = eventRow?.timezone ?? null;
+      }
+
       await supabaseAdmin
         .from("event_ticket_tiers")
         .delete()
         .eq("event_id", eventId);
       if (pricing.length > 0) {
+        for (const tier of pricing) {
+          const validationError = validateTicketTierInput(tier);
+          if (validationError) {
+            return NextResponse.json(
+              { error: validationError },
+              { status: 400 },
+            );
+          }
+        }
+
         const rows = pricing.map((t, i) => ({
           event_id: eventId,
-          label: t.label,
+          type: t.type,
+          name: t.name,
           price: t.price,
+          quantity: t.quantity ?? null,
+          offer_start: buildUtcTimestamp(
+            t.offerStartDate,
+            t.offerStartTime,
+            pricingTimeZone,
+          ),
+          offer_end: buildUtcTimestamp(
+            t.offerEndDate,
+            t.offerEndTime,
+            pricingTimeZone,
+          ),
           sort_order: i,
         }));
         await supabaseAdmin.from("event_ticket_tiers").insert(rows);
       }
       updatedGroups.push("pricing");
+    }
+
+    /* ── event_capacity (if included in this patch) ── */
+    if ("eventCapacity" in body) {
+      const ec = body.eventCapacity ?? null;
+      const ecErr = validateEventCapacity(ec);
+      if (ecErr) {
+        return NextResponse.json({ error: ecErr }, { status: 400 });
+      }
+      await supabaseAdmin
+        .from("events")
+        .update({ event_capacity: ec })
+        .eq("id", eventId);
     }
 
     /* ── links ── */

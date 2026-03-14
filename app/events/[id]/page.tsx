@@ -142,7 +142,7 @@ function EventJsonLd({
       ? {
           offers: event.ticket_tiers.map((t) => ({
             "@type": "Offer",
-            name: t.label,
+            name: t.name,
             price: t.price,
             priceCurrency: "AUD",
             availability: "https://schema.org/InStock",

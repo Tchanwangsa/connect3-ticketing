@@ -62,9 +62,16 @@ function buildPatchBody(
 
   if (groups.includes("pricing")) {
     body.pricing = form.pricing.map((t) => ({
-      label: t.label,
+      type: t.type,
+      name: t.name,
       price: t.price,
+      quantity: t.quantity ?? null,
+      offerStartDate: t.offerStartDate,
+      offerStartTime: t.offerStartTime,
+      offerEndDate: t.offerEndDate,
+      offerEndTime: t.offerEndTime,
     }));
+    body.eventCapacity = form.eventCapacity ?? null;
   }
 
   if (groups.includes("links")) {

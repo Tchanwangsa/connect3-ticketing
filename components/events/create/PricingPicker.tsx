@@ -6,13 +6,28 @@ import { PricingModal } from "./PricingModal";
 import type { TicketTier, EditInputProps } from "../shared/types";
 import { formatPricingLabel } from "../shared/pricingUtils";
 
-type PricingPickerProps = EditInputProps<TicketTier[]>;
+interface PricingPickerProps extends EditInputProps<TicketTier[]> {
+  eventCapacity?: number | null;
+  onEventCapacityChange?: (cap: number | null) => void;
+  eventStartDate?: string;
+  eventStartTime?: string;
+  /** Called after tiers are saved — use to immediately flush pending auto-saves */
+  onAfterSave?: () => void;
+}
 
 /**
  * Inline pricing display that opens a modal to manage ticket tiers.
  * Uses the Tags icon. Shows "Free", "$5", or "$5 – $10" depending on tiers.
  */
-export function PricingPicker({ value, onChange }: PricingPickerProps) {
+export function PricingPicker({
+  value,
+  onChange,
+  eventCapacity,
+  onEventCapacityChange,
+  eventStartDate,
+  eventStartTime,
+  onAfterSave,
+}: PricingPickerProps) {
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
@@ -32,7 +47,14 @@ export function PricingPicker({ value, onChange }: PricingPickerProps) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         value={value}
-        onSave={onChange}
+        eventCapacity={eventCapacity}
+        eventStartDate={eventStartDate}
+        eventStartTime={eventStartTime}
+        onSave={(tiers, cap) => {
+          onChange(tiers);
+          onEventCapacityChange?.(cap);
+          onAfterSave?.();
+        }}
       />
     </>
   );

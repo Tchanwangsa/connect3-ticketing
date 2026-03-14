@@ -4,13 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 import { getClubAdminRow } from "@/lib/auth/clubAdmin";
 import type { EventCardDetails, AvatarProfile } from "@/lib/types/events";
 import { buildUtcTimestamp } from "@/lib/utils/timezone";
+import {
+  validateTicketTierInput,
+  validateEventCapacity,
+  type TicketTierInput,
+} from "@/lib/utils/ticketPricing";
 
 /* ── Types matching the JSON payload ── */
 
-interface TicketTierPayload {
-  label: string;
-  price: number;
-}
+interface TicketTierPayload extends TicketTierInput {}
 interface EventLinkPayload {
   url: string;
   title: string;
@@ -427,6 +429,7 @@ export async function POST(request: NextRequest) {
     const category: string | null = body.category || null;
     const tags: string[] = body.tags ?? [];
     const pricing: TicketTierPayload[] = body.pricing ?? [];
+    const eventCapacity: number | null = body.eventCapacity ?? null;
     const links: EventLinkPayload[] = body.links ?? [];
     const theme: ThemePayload | null = body.theme ?? null;
     const location: LocationPayload | null = body.location ?? null;
@@ -445,6 +448,11 @@ export async function POST(request: NextRequest) {
         { error: "Event ID is required" },
         { status: 400 },
       );
+    }
+
+    const capError = validateEventCapacity(eventCapacity);
+    if (capError) {
+      return NextResponse.json({ error: capError }, { status: 400 });
     }
 
     /* ── Build start / end timestamps ── */
@@ -503,6 +511,7 @@ export async function POST(request: NextRequest) {
       category,
       tags,
       timezone,
+      event_capacity: eventCapacity,
       source: "connect3",
     });
     if (eventErr) throw new Error(`Event insert failed: ${eventErr.message}`);
@@ -524,10 +533,28 @@ export async function POST(request: NextRequest) {
 
     /* ── Insert ticket tiers ── */
     if (pricing.length > 0) {
+      for (const tier of pricing) {
+        const validationError = validateTicketTierInput(tier);
+        if (validationError) {
+          return NextResponse.json(
+            { error: validationError },
+            { status: 400 },
+          );
+        }
+      }
+
       const rows = pricing.map((t, i) => ({
         event_id: eventId,
-        label: t.label,
+        type: t.type,
+        name: t.name,
         price: t.price,
+        quantity: t.quantity ?? null,
+        offer_start: buildUtcTimestamp(
+          t.offerStartDate,
+          t.offerStartTime,
+          timezone,
+        ),
+        offer_end: buildUtcTimestamp(t.offerEndDate, t.offerEndTime, timezone),
         sort_order: i,
       }));
       const { error } = await supabaseAdmin

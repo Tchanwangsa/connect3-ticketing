@@ -33,8 +33,12 @@ interface RawHost {
 
 interface RawTicketTier {
   id: string;
-  label: string;
+  type: "general" | "members" | "timed" | "special";
+  name: string;
   price: number;
+  quantity: number | null;
+  offer_start: string | null;
+  offer_end: string | null;
   sort_order: number;
 }
 
@@ -80,6 +84,7 @@ interface RawEvent {
   tags: string[] | null;
   status: string;
   creator_profile_id: string;
+  event_capacity: number | null;
   event_locations: RawLocation | null;
   images: RawImage[];
   hosts: RawHost[];
@@ -177,9 +182,30 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
 
   /* ── Pricing / ticket tiers ── */
   const pricing: TicketTier[] = data.ticket_tiers.map((t) => ({
+    ...(t.offer_start
+      ? (() => {
+          const split = splitUtcTimestampInTimeZone(t.offer_start, data.timezone);
+          return {
+            offerStartDate: split.date,
+            offerStartTime: split.time,
+          };
+        })()
+      : {}),
+    ...(t.offer_end
+      ? (() => {
+          const split = splitUtcTimestampInTimeZone(t.offer_end, data.timezone);
+          return {
+            offerEndDate: split.date,
+            offerEndTime: split.time,
+          };
+        })()
+      : {}),
     id: t.id,
-    label: t.label,
+    // Coerce legacy types ("timed", "special") to "general"
+    type: (t.type === "members" ? "members" : "general") as TicketTier["type"],
+    name: t.name,
     price: t.price,
+    quantity: t.quantity,
   }));
 
   /* ── Links ── */
@@ -229,6 +255,7 @@ export async function fetchEvent(eventId: string): Promise<FetchedEventData> {
     hostIds,
     imageUrls: existingImages,
     pricing,
+    eventCapacity: data.event_capacity ?? null,
     links: eventLinks,
     theme,
   };

@@ -17,7 +17,7 @@ export interface PublicEventData {
   tags: string[] | null;
   status: string;
   thumbnail: string | null;
-  capacity: number | null;
+  event_capacity: number | null;
   creator_profile_id: string;
   location: {
     venue: string | null;
@@ -37,8 +37,10 @@ export interface PublicEventData {
   }[];
   ticket_tiers: {
     id: string;
-    label: string;
+    type: string;
+    name: string;
     price: number;
+    quantity: number | null;
     sort_order: number;
   }[];
   links: {
@@ -100,7 +102,7 @@ export async function fetchEventServer(
         .order("sort_order"),
       supabaseAdmin
         .from("event_ticket_tiers")
-        .select("id, label, price, sort_order")
+        .select("id, type, name, price, quantity, sort_order")
         .eq("event_id", eventId)
         .order("sort_order"),
       supabaseAdmin
@@ -139,7 +141,7 @@ export async function fetchEventServer(
     tags: event.tags,
     status: event.status,
     thumbnail: event.thumbnail,
-    capacity: event.capacity,
+    event_capacity: event.event_capacity,
     creator_profile_id: event.creator_profile_id,
     location: loc
       ? {

@@ -2,28 +2,36 @@
 
 import { useState } from "react";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Info, Plus, Trash2, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Info,
+  Plus,
+  Trash2,
+  Settings2,
+} from "lucide-react";
 import type { TicketTier } from "../shared/types";
-import { PRESET_TICKET_TYPES } from "../shared/types";
+import { validateTicketTier as validateTier } from "../shared/pricingUtils";
+import { TicketOfferWindowFields } from "./TicketOfferWindowFields";
+import { cn } from "@/lib/utils";
 
 interface PricingModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: TicketTier[];
-  onSave: (tiers: TicketTier[]) => void;
+  onSave: (tiers: TicketTier[], eventCapacity: number | null) => void;
+  eventCapacity?: number | null;
+  eventStartDate?: string;
+  eventStartTime?: string;
 }
-
-const CUSTOM_VALUE = "__custom__";
 
 let nextId = 1;
 function genId() {
@@ -35,284 +43,435 @@ export function PricingModal({
   onOpenChange,
   value,
   onSave,
+  eventCapacity: initialEventCapacity,
+  eventStartDate,
+  eventStartTime,
 }: PricingModalProps) {
-  // Local draft so we can cancel without saving
   const [tiers, setTiers] = useState<TicketTier[]>(value);
-  // Track which tier ids are in "custom" input mode
-  const [customIds, setCustomIds] = useState<Set<string>>(new Set());
-  // Dismissible in-modal banner
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [openSettings, setOpenSettings] = useState<Set<string>>(new Set());
+  const [offerWindowOpen, setOfferWindowOpen] = useState<Set<string>>(() => {
+    const ids = new Set<string>();
+    for (const t of value) {
+      if (t.offerStartDate || t.offerEndDate) ids.add(t.id);
+    }
+    return ids;
+  });
+  const [eventCapacity, setEventCapacity] = useState<number | null>(
+    initialEventCapacity ?? null,
+  );
 
-  // Reset local state when opening
   const handleOpenChange = (next: boolean) => {
     if (next) {
       setTiers(value);
-      // Mark tiers that aren't presets as custom
-      const presetLabels = new Set<string>(PRESET_TICKET_TYPES);
-      const customs = new Set<string>();
-      value.forEach((t) => {
-        if (!presetLabels.has(t.label)) customs.add(t.id);
-      });
-      setCustomIds(customs);
-      setBannerDismissed(false);
+      setErrors({});
+      setOpenSettings(new Set());
+      const ids = new Set<string>();
+      for (const t of value) {
+        if (t.offerStartDate || t.offerEndDate) ids.add(t.id);
+      }
+      setOfferWindowOpen(ids);
+      setEventCapacity(initialEventCapacity ?? null);
     }
     onOpenChange(next);
   };
 
-  /* ── Tier manipulation helpers ── */
   const addTier = () => {
+    const pendingErrors: Record<string, string> = {};
+    tiers.forEach((tier) => {
+      const error = validateTier(tier);
+      if (error) pendingErrors[tier.id] = error;
+    });
+    if (Object.keys(pendingErrors).length > 0) {
+      setErrors(pendingErrors);
+      return;
+    }
+
     const id = genId();
-    setTiers((prev) => [...prev, { id, label: "", price: 0 }]);
-    // New rows default to dropdown mode (not custom)
-  };
-
-  const updateTierPrice = (id: string, price: number) => {
-    setTiers((prev) => prev.map((t) => (t.id === id ? { ...t, price } : t)));
-  };
-
-  const updateTierLabel = (id: string, label: string) => {
-    setTiers((prev) => prev.map((t) => (t.id === id ? { ...t, label } : t)));
+    setTiers((prev) => [
+      ...prev,
+      { id, type: "general", name: "", price: 0, quantity: null },
+    ]);
   };
 
   const removeTier = (id: string) => {
     setTiers((prev) => prev.filter((t) => t.id !== id));
-    setCustomIds((prev) => {
+    setOpenSettings((prev) => {
       const next = new Set(prev);
       next.delete(id);
       return next;
     });
+    setOfferWindowOpen((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
-  /** Handle dropdown change for a tier row */
-  const handleTypeSelect = (tierId: string, selectValue: string) => {
-    if (selectValue === CUSTOM_VALUE) {
-      // Switch to custom text-input mode, clear the label so they can type
-      updateTierLabel(tierId, "");
-      setCustomIds((prev) => new Set(prev).add(tierId));
-    } else {
-      // Preset selected — set label, leave custom mode
-      updateTierLabel(tierId, selectValue);
-      setCustomIds((prev) => {
-        const next = new Set(prev);
-        next.delete(tierId);
-        return next;
-      });
-    }
+  const updateTier = (id: string, updates: Partial<TicketTier>) => {
+    setTiers((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    );
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const toggleSettings = (id: string) => {
+    setOpenSettings((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const handleSave = () => {
-    // Only save tiers that have a label
-    onSave(tiers.filter((t) => t.label.trim()));
+    const newErrors: Record<string, string> = {};
+    const validTiers: TicketTier[] = [];
+
+    tiers.forEach((tier) => {
+      const error = validateTier(tier);
+      if (error) newErrors[tier.id] = error;
+      else validTiers.push(tier);
+    });
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    onSave(validTiers, eventCapacity);
     onOpenChange(false);
   };
 
   const handleSetFree = () => {
-    onSave([]);
+    onSave([], eventCapacity);
     onOpenChange(false);
   };
 
-  const showBanner = tiers.length > 0 && !bannerDismissed;
-  const canAddTier = tiers.length < 4;
+  const canAddTier = tiers.length < 10;
 
   return (
     <ResponsiveModal
       open={open}
       onOpenChange={handleOpenChange}
       title="Ticket Pricing"
-      description="Add ticket tiers for your event, or keep it free."
-      className="sm:max-w-md"
+      description="Set up ticket tiers, prices, and optional settings."
+      className="sm:max-w-2xl"
     >
       <div className="flex flex-col gap-4">
-        {/* In-modal ticketing info banner */}
-        {showBanner && (
-          <div className="flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2.5 dark:border-yellow-900 dark:bg-yellow-950/40">
-            <Info className="h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
-            <p className="flex-1 text-xs text-yellow-800 dark:text-yellow-300">
-              Remember to configure your ticketing details (capacity, sales
-              dates, etc.) after creating this event.
-            </p>
-            <button
-              type="button"
-              onClick={() => setBannerDismissed(true)}
-              className="shrink-0 rounded-md p-0.5 text-yellow-600 transition-colors hover:bg-yellow-100 dark:text-yellow-400 dark:hover:bg-yellow-900"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+        {/* Event-level capacity */}
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <Label className="shrink-0 text-xs font-medium text-muted-foreground">
+              Event Capacity
+            </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 shrink-0 cursor-help text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-52">
+                  Total tickets available across all tiers. Leave empty for
+                  unlimited.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-        )}
+          <Input
+            type="number"
+            min={1}
+            value={eventCapacity ?? ""}
+            onChange={(e) =>
+              setEventCapacity(
+                e.target.value
+                  ? Math.max(1, parseInt(e.target.value, 10) || 1)
+                  : null,
+              )
+            }
+            placeholder="Unlimited"
+            className="h-8 w-32 text-sm"
+          />
+        </div>
 
-        {/* Content - scrollable */}
-        <div className="max-h-75 overflow-y-auto space-y-4 pr-2 pb-4">
+        {/* Table */}
+        <div className="overflow-hidden rounded-md border">
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_88px_88px_72px] border-b bg-muted/40 px-3 py-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Ticket Name <span className="text-red-500">*</span>
+            </span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Price <span className="text-red-500">*</span>
+            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Quantity
+              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3 w-3 cursor-help text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-52">
+                    Max tickets sold for this tier. Leave empty for unlimited.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <span className="text-right text-xs font-medium text-muted-foreground">
+              Actions
+            </span>
+          </div>
+
           {/* Tier rows */}
-          {tiers.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-2">
-              No ticket tiers yet — this event is free.
-            </p>
-          )}
+          <div className="max-h-80 overflow-y-auto divide-y">
+            {tiers.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No ticket tiers yet — this event is free.
+              </p>
+            )}
 
-          {tiers.map((tier) => {
-            const isCustom = customIds.has(tier.id);
+            {tiers.map((tier) => {
+              const isSettingsOpen = openSettings.has(tier.id);
+              const isMembersOnly = tier.type === "members";
+              const isOfferWindowOn = offerWindowOpen.has(tier.id);
+              const hasSettings = isMembersOnly || isOfferWindowOn;
+              const error = errors[tier.id];
 
-            return (
-              <div key={tier.id} className="flex items-end gap-2">
-                {/* Ticket type — dropdown or custom input */}
-                <div className="flex-1 space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    Ticket Type
-                  </Label>
+              return (
+                <div key={tier.id}>
+                  {/* Main row */}
+                  <div
+                    className={cn(
+                      "grid grid-cols-[1fr_88px_88px_72px] items-center gap-1.5 px-3 py-2",
+                      error && "bg-red-50/50 dark:bg-red-950/10",
+                    )}
+                  >
+                    {/* Name */}
+                    <Input
+                      value={tier.name}
+                      onChange={(e) =>
+                        updateTier(tier.id, { name: e.target.value })
+                      }
+                      placeholder="e.g. General Admission"
+                      className="h-8 text-sm"
+                    />
 
-                  {isCustom ? (
-                    <div className="flex items-center gap-1.5">
+                    {/* Price */}
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        $
+                      </span>
                       <Input
-                        value={tier.label}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={tier.price === 0 ? "" : tier.price}
                         onChange={(e) =>
-                          updateTierLabel(tier.id, e.target.value)
+                          updateTier(tier.id, {
+                            price: Math.max(
+                              0,
+                              parseFloat(e.target.value) || 0,
+                            ),
+                          })
                         }
-                        placeholder="Custom ticket name"
-                        className="h-9"
-                        autoFocus
+                        placeholder="0.00"
+                        className="h-8 pl-5 text-sm"
                       />
-                      {/* Let user switch back to presets */}
+                    </div>
+
+                    {/* Quantity */}
+                    <Input
+                      type="number"
+                      min={1}
+                      value={tier.quantity ?? ""}
+                      onChange={(e) =>
+                        updateTier(tier.id, {
+                          quantity: e.target.value
+                            ? Math.max(1, parseInt(e.target.value, 10) || 1)
+                            : null,
+                        })
+                      }
+                      placeholder="∞"
+                      className="h-8 text-sm"
+                    />
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 shrink-0 text-muted-foreground"
-                        title="Switch to preset"
-                        onClick={() => {
-                          // Reset to first available preset or keep as custom
-                          setCustomIds((prev) => {
-                            const next = new Set(prev);
-                            next.delete(tier.id);
-                            return next;
-                          });
-                          if (
-                            !(
-                              PRESET_TICKET_TYPES as readonly string[]
-                            ).includes(tier.label)
-                          ) {
-                            updateTierLabel(tier.id, "");
-                          }
-                        }}
+                        className={cn(
+                          "h-7 w-7 shrink-0",
+                          isSettingsOpen || hasSettings
+                            ? "text-foreground"
+                            : "text-muted-foreground",
+                          (isSettingsOpen || hasSettings) &&
+                            "bg-muted",
+                        )}
+                        onClick={() => toggleSettings(tier.id)}
+                        aria-label="Ticket settings"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
+                        <Settings2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeTier(tier.id)}
+                        aria-label="Remove tier"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  ) : (
-                    <Select
-                      value={
-                        (PRESET_TICKET_TYPES as readonly string[]).includes(
-                          tier.label,
-                        )
-                          ? tier.label
-                          : ""
-                      }
-                      onValueChange={(v) => handleTypeSelect(tier.id, v)}
-                    >
-                      <SelectTrigger className="h-9 w-full">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRESET_TICKET_TYPES.map((preset) => (
-                          <SelectItem key={preset} value={preset}>
-                            {preset}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value={CUSTOM_VALUE}>Custom…</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  </div>
+
+                  {/* Validation error */}
+                  {error && (
+                    <div className="mx-3 mb-2 rounded border border-red-300 bg-red-50 px-2 py-1 dark:border-red-900 dark:bg-red-950/20">
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {error}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Settings panel */}
+                  {isSettingsOpen && (
+                    <div className="space-y-3 border-t bg-muted/20 px-3 py-3">
+                      {/* Members Only */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium">Members Only</p>
+                          <p className="text-xs text-muted-foreground">
+                            Restrict this ticket to verified members
+                          </p>
+                        </div>
+                        <Switch
+                          checked={isMembersOnly}
+                          onCheckedChange={(checked) =>
+                            updateTier(tier.id, {
+                              type: checked ? "members" : "general",
+                            })
+                          }
+                        />
+                      </div>
+
+                      {/* Offer Window */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium">Offer Window</p>
+                            <p className="text-xs text-muted-foreground">
+                              Limit when this ticket can be purchased
+                            </p>
+                          </div>
+                          <Switch
+                            checked={isOfferWindowOn}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setOfferWindowOpen((prev) =>
+                                  new Set(prev).add(tier.id),
+                                );
+                              } else {
+                                setOfferWindowOpen((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(tier.id);
+                                  return next;
+                                });
+                                updateTier(tier.id, {
+                                  offerStartDate: "",
+                                  offerStartTime: "",
+                                  offerEndDate: "",
+                                  offerEndTime: "",
+                                });
+                              }
+                            }}
+                          />
+                        </div>
+
+                        {isOfferWindowOn && (
+                          <TicketOfferWindowFields
+                            startDate={tier.offerStartDate}
+                            startTime={tier.offerStartTime}
+                            endDate={tier.offerEndDate}
+                            endTime={tier.offerEndTime}
+                            eventStartDate={eventStartDate}
+                            eventStartTime={eventStartTime}
+                            onChange={(next) =>
+                              updateTier(tier.id, {
+                                offerStartDate:
+                                  next.startDate !== undefined
+                                    ? next.startDate
+                                    : tier.offerStartDate,
+                                offerStartTime:
+                                  next.startTime !== undefined
+                                    ? next.startTime
+                                    : tier.offerStartTime,
+                                offerEndDate:
+                                  next.endDate !== undefined
+                                    ? next.endDate
+                                    : tier.offerEndDate,
+                                offerEndTime:
+                                  next.endTime !== undefined
+                                    ? next.endTime
+                                    : tier.offerEndTime,
+                              })
+                            }
+                          />
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Price */}
-                <div className="w-28 space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Price</Label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                      $
-                    </span>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={tier.price || ""}
-                      onChange={(e) =>
-                        updateTierPrice(
-                          tier.id,
-                          Math.max(0, parseFloat(e.target.value) || 0),
-                        )
-                      }
-                      placeholder="0"
-                      className="h-9 pl-6"
-                    />
-                  </div>
-                </div>
-
-                {/* Remove */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeTier(tier.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            );
-          })}
+          {/* Add row */}
+          <div className="border-t px-3 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={addTier}
+              disabled={!canAddTier}
+              className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              title={!canAddTier ? "Maximum 10 tiers" : undefined}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Ticket Type
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Footer actions */}
-      <div className="flex-col gap-2 pt-4 border-t">
-        {/* Add tier button */}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addTier}
-          disabled={!canAddTier}
-          className="w-full gap-1.5"
-          title={!canAddTier ? "Maximum 4 tiers allowed" : undefined}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add Ticket Tier
+      <div className="flex items-center justify-between border-t pt-4">
+        <Button type="button" variant="ghost" size="sm" onClick={handleSetFree}>
+          Set as Free
         </Button>
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex gap-2">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            onClick={handleSetFree}
+            onClick={() => onOpenChange(false)}
           >
-            Set as Free
+            Cancel
           </Button>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="button" size="sm" onClick={handleSave}>
-              Save Pricing
-            </Button>
-          </div>
+          <Button type="button" size="sm" onClick={handleSave}>
+            Save Pricing
+          </Button>
         </div>
       </div>
     </ResponsiveModal>

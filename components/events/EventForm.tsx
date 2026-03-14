@@ -244,6 +244,7 @@ export default function EventForm({
       imageUrls: "images",
       hostIds: "hosts",
       pricing: "pricing",
+      eventCapacity: "pricing",
       links: "links",
       theme: "theme",
     }),
@@ -291,6 +292,7 @@ export default function EventForm({
     hostIds: initialData?.hostIds ?? [],
     imageUrls: initialData?.imageUrls ?? [],
     pricing: initialData?.pricing ?? [],
+    eventCapacity: initialData?.eventCapacity ?? null,
     links: initialData?.links ?? [],
     theme: initialData?.theme ?? { ...DEFAULT_THEME },
   } as EventFormData);
@@ -352,22 +354,45 @@ export default function EventForm({
   const cardDark = isDark;
 
   /* ── Auto-save (field-group-aware, debounced) ── */
-  const broadcastRef = useRef<(groups: FieldGroup[]) => void>(() => {});
+  const broadcastRef = useRef<(groups: FieldGroup[]) => void>(() => { });
+
+  /**
+   * Always-current refs so performAutoSave never captures stale closure values.
+   * This is critical when flush() is called synchronously after setForm() —
+   * React hasn't re-rendered yet so the state variable `form` would be stale.
+   */
+  const formRef = useRef<EventFormData>(form);
+  const carouselImagesRef = useRef<CarouselImage[]>(carouselImages);
+  const sectionsRef = useRef<SectionData[]>(sections);
+  const draftSavedRef = useRef<boolean>(draftSaved);
+
+  // Keep refs in sync on every render
+  formRef.current = form;
+  carouselImagesRef.current = carouselImages;
+  sectionsRef.current = sections;
+  draftSavedRef.current = draftSaved;
 
   const performAutoSave = useCallback(
     async (dirtyGroups: FieldGroup[]) => {
+      // Read from refs so we always get the latest values, even when called
+      // synchronously (e.g. flush() right after setForm()).
+      const latestForm = formRef.current;
+      const latestImages = carouselImagesRef.current;
+      const latestSections = sectionsRef.current;
+      const latestDraftSaved = draftSavedRef.current;
       try {
-        if (draftSaved) {
+        if (latestDraftSaved) {
           await patchEvent(
             eventId!,
             dirtyGroups,
-            form,
-            carouselImages,
-            sections,
+            latestForm,
+            latestImages,
+            latestSections,
           );
         } else {
-          await createEvent(eventId!, form, carouselImages, sections, "draft");
+          await createEvent(eventId!, latestForm, latestImages, latestSections, "draft");
           setDraftSaved(true);
+          draftSavedRef.current = true;
         }
         broadcastRef.current(dirtyGroups);
         setLastSavedAt(new Date());
@@ -376,7 +401,7 @@ export default function EventForm({
         throw err; // re-throw so useFieldAutoSave re-queues the groups
       }
     },
-    [eventId, form, carouselImages, sections, draftSaved],
+    [eventId],
   );
 
   const {
@@ -442,6 +467,8 @@ export default function EventForm({
     key: K,
     value: EventFormData[K],
   ) => {
+    // Update the ref synchronously so any immediate flush() sees the new value
+    formRef.current = { ...formRef.current, [key]: value };
     setForm((prev) => ({ ...prev, [key]: value }));
     markDirty(FIELD_TO_GROUP[key]);
   };
@@ -501,6 +528,7 @@ export default function EventForm({
               setForm((prev) => ({
                 ...prev,
                 pricing: result.formData.pricing ?? [],
+                eventCapacity: result.formData.eventCapacity ?? null,
               }));
               break;
             case "links":
@@ -1026,6 +1054,13 @@ export default function EventForm({
                       mode={viewMode}
                       value={form.pricing}
                       onChange={(tiers) => updateField("pricing", tiers)}
+                      eventCapacity={form.eventCapacity}
+                      onEventCapacityChange={(cap) =>
+                        updateField("eventCapacity", cap)
+                      }
+                      eventStartDate={form.startDate}
+                      eventStartTime={form.startTime}
+                      onAfterSave={() => flush()}
                     />
                   </div>
                   <div

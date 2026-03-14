@@ -581,14 +581,14 @@ export default function CheckoutForm({ eventId, mode }: CheckoutFormProps) {
                     <SelectContent>
                       {pricing.map((tier) => (
                         <SelectItem key={tier.id} value={tier.id}>
-                          {tier.label}
+                          {tier.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : (
                   <p className={cn("text-base font-semibold", colors.text)}>
-                    {selectedTier.label}
+                    {selectedTier.name}
                   </p>
                 )}
               </div>

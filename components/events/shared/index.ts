@@ -9,6 +9,7 @@ export type {
   HostsValue,
   EventFormData,
   TicketTier,
+  TicketType,
   ThemeMode,
   ThemeLayout,
   ThemeAccent,
@@ -16,7 +17,7 @@ export type {
   ThemeColors,
 } from "./types";
 export {
-  PRESET_TICKET_TYPES,
+  TICKET_NAME_PLACEHOLDER,
   DEFAULT_THEME,
   getThemeColors,
   getAccentGradient,

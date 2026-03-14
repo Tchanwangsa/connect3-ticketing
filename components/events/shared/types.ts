@@ -36,12 +36,35 @@ export interface ClubProfile {
   avatar_url: string | null;
 }
 
-/** A single ticket tier (e.g. Early Bird – $10). */
+/**
+ * Ticket type.
+ * "timed" is kept for backwards-compatibility with existing database rows
+ * but is no longer created via the UI — offer windows are now a setting
+ * that can be applied to any ticket type.
+ */
+export type TicketType = "general" | "members" | "timed";
+
+/** A single ticket tier with type, name, price, and optional sale window. */
 export interface TicketTier {
   id: string;
-  label: string; // e.g. "Early Bird", "Members", custom text
+  /** "general" = standard; "members" = members-only; "timed" = legacy (treated as general + offer window) */
+  type: TicketType;
+  name: string; // Required ticket name (e.g. "General Admission", "VIP", etc.)
   price: number; // 0 = free
+  quantity?: number | null; // Optional max number of tickets sold for this tier (null = unlimited)
+  /** Offer window start — if set, end must also be set and end > start */
+  offerStartDate?: string; // YYYY-MM-DD
+  offerStartTime?: string; // HH:MM
+  offerEndDate?: string; // YYYY-MM-DD
+  offerEndTime?: string; // HH:MM
 }
+
+/** Placeholder text per ticket type for the name input. */
+export const TICKET_NAME_PLACEHOLDER: Record<string, string> = {
+  general: "e.g. General Admission",
+  members: "e.g. Member Ticket",
+  timed: "e.g. Early Bird",
+};
 
 /** A single event link (e.g. website, social, registration). */
 export interface EventLink {
@@ -49,14 +72,6 @@ export interface EventLink {
   url: string;
   title: string; // optional display title — empty string = show URL only
 }
-
-/** Pre-defined ticket-type labels users can pick. */
-export const PRESET_TICKET_TYPES = [
-  "All",
-  "Early Bird",
-  "Members",
-  "Non-Members",
-] as const;
 
 /** Composite value for the hosts form input (ids + cached profile objects). */
 export interface HostsValue {
@@ -234,6 +249,8 @@ export interface EventFormData {
   imageUrls: string[];
   /** Ticket pricing tiers — empty array means "Free". */
   pricing: TicketTier[];
+  /** Total event capacity across all tiers (null = unlimited). */
+  eventCapacity?: number | null;
   /** External links (website, socials, etc.). */
   links: EventLink[];
   /** Page appearance customization. */
