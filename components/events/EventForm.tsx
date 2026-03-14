@@ -1201,6 +1201,7 @@ export default function EventForm({
           isDark={isDark}
           draft={eventStatus === "draft"}
           hasTiers={form.pricing.length > 0}
+          editor
         />
       )}
     </div>

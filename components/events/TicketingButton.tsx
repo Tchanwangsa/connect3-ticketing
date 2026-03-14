@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ThemeAccent } from "@/components/events/shared/types";
 import { TooltipContent, TooltipTrigger, Tooltip } from "../ui/tooltip";
+import { toast } from "sonner";
 
 /* ── Accent → solid colour mapping ── */
 const ACCENT_SOLID_MAP: Record<
@@ -43,6 +44,8 @@ interface TicketingButtonProps {
   draft?: boolean;
   /** Whether the event has at least one ticket tier. Defaults to true. */
   hasTiers?: boolean;
+  /** Whether the button is in edit form. Defaults to false. */
+  editor?: boolean;
 }
 
 /**
@@ -59,6 +62,7 @@ export function TicketingButton({
   isDark = false,
   draft = false,
   hasTiers = true,
+  editor = false,
 }: TicketingButtonProps) {
   const router = useRouter();
   const [ticketingEnabled, setTicketingEnabled] = useState<boolean | null>(
@@ -90,11 +94,6 @@ export function TicketingButton({
         : "Setup Ticketing"
       : "Get Tickets";
 
-  const href =
-    mode === "edit"
-      ? `/events/${eventId}/checkout/edit`
-      : `/events/${eventId}/checkout`;
-
   const accentStyle = getAccentButtonStyle(accent, accentCustom);
   const disabled = loading || !hasTiers || (mode === "preview" && draft);
   const tooltip = !hasTiers
@@ -102,6 +101,19 @@ export function TicketingButton({
     : draft
       ? "Publish your event to enable checkout"
       : undefined;
+
+  const handleClick = () => {
+    if (!hasTiers) {
+      toast.error(editor ? "Add at least one ticket tier to enable checkout" : "Event has no tickets");
+      return;
+    }
+
+    if (editor) {
+      router.push(`/events/${eventId}/checkout/edit`);
+    } else {
+      router.push(`/events/${eventId}/checkout`);
+    }
+  };
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 sm:bottom-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2">
@@ -122,10 +134,10 @@ export function TicketingButton({
                 className={cn(
                   "w-full gap-2 rounded-lg",
                   !accentStyle &&
-                    "bg-foreground text-background hover:bg-foreground/90",
+                  "bg-foreground text-background hover:bg-foreground/90",
                 )}
                 style={accentStyle}
-                onClick={() => router.push(href)}
+                onClick={handleClick}
                 disabled={disabled}
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
@@ -146,10 +158,10 @@ export function TicketingButton({
                 className={cn(
                   "gap-2 rounded-lg px-10",
                   !accentStyle &&
-                    "bg-foreground text-background hover:bg-foreground/90",
+                  "bg-foreground text-background hover:bg-foreground/90",
                 )}
                 style={accentStyle}
-                onClick={() => router.push(href)}
+                onClick={handleClick}
                 disabled={disabled}
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}

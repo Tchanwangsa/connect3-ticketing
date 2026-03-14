@@ -112,18 +112,18 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
 
   const tzAbbrev = value.timezone
     ? (() => {
-        try {
-          const parts = new Date()
-            .toLocaleString("en-AU", {
-              timeZone: value.timezone,
-              timeZoneName: "short",
-            })
-            .split(/\s/);
-          return parts[parts.length - 1] ?? "";
-        } catch {
-          return "";
-        }
-      })()
+      try {
+        const parts = new Date()
+          .toLocaleString("en-AU", {
+            timeZone: value.timezone,
+            timeZoneName: "short",
+          })
+          .split(/\s/);
+        return parts[parts.length - 1] ?? "";
+      } catch {
+        return "";
+      }
+    })()
     : "";
 
   return (
@@ -135,9 +135,8 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
         trigger={
           <button
             type="button"
-            className={`text-left text-sm transition-colors hover:text-foreground sm:text-base ${
-              hasStart ? "font-medium text-foreground" : "text-muted-foreground"
-            }`}
+            className={`text-left text-sm transition-colors hover:text-foreground sm:text-base ${hasStart ? "font-medium text-foreground" : "text-muted-foreground"
+              }`}
           >
             {displayText}
           </button>
@@ -151,11 +150,10 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
           <button
             type="button"
             onClick={() => setTab("start")}
-            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === "start"
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${tab === "start"
                 ? "border-b-2 border-primary text-foreground"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Start *
           </button>
@@ -163,24 +161,22 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
             type="button"
             onClick={() => draft.startDate && setTab("end")}
             disabled={!draft.startDate}
-            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === "end"
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${tab === "end"
                 ? "border-b-2 border-primary text-foreground"
                 : !draft.startDate
                   ? "cursor-not-allowed text-muted-foreground/40"
                   : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             End
           </button>
           <button
             type="button"
             onClick={() => setTab("tz")}
-            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === "tz"
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${tab === "tz"
                 ? "border-b-2 border-primary text-foreground"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <Globe className="mr-1 inline h-3.5 w-3.5" />
             TZ

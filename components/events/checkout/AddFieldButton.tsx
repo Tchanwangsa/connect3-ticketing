@@ -12,10 +12,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { TicketingFieldType } from "@/lib/types/ticketing";
 import { FIELD_TYPE_META } from "@/lib/types/ticketing";
@@ -38,8 +38,8 @@ interface AddFieldButtonProps {
 
 export function AddFieldButton({ onAdd, colors }: AddFieldButtonProps) {
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
           className={cn(
@@ -51,8 +51,8 @@ export function AddFieldButton({ onAdd, colors }: AddFieldButtonProps) {
           <Plus className="h-4 w-4" />
           Add Field
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-1.5" align="center">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-64 p-1.5" align="center">
         <div className="space-y-0.5">
           {FIELD_TYPE_META.map((meta) => {
             const Icon = ICON_MAP[meta.icon];
@@ -81,7 +81,7 @@ export function AddFieldButton({ onAdd, colors }: AddFieldButtonProps) {
             );
           })}
         </div>
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

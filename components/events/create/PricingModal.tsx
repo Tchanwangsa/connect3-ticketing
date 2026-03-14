@@ -94,6 +94,27 @@ export function PricingModal({
     ]);
   };
 
+  const addFreeTier = () => {
+    const id = genId();
+    setTiers((prev) => [
+      ...prev,
+      { id, type: "general", name: "Free Ticket", price: 0, quantity: null },
+    ]);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const addMembersOnlyTier = () => {
+    const id = genId();
+    setTiers((prev) => [
+      ...prev,
+      { id, type: "members", name: "Members Only", price: 0, quantity: null },
+    ]);
+  };
+
   const removeTier = (id: string) => {
     setTiers((prev) => prev.filter((t) => t.id !== id));
     setOpenSettings((prev) => {
@@ -149,11 +170,6 @@ export function PricingModal({
     }
 
     onSave(validTiers, eventCapacity);
-    onOpenChange(false);
-  };
-
-  const handleSetFree = () => {
-    onSave([], eventCapacity);
     onOpenChange(false);
   };
 
@@ -317,7 +333,7 @@ export function PricingModal({
                             ? "text-foreground"
                             : "text-muted-foreground",
                           (isSettingsOpen || hasSettings) &&
-                            "bg-muted",
+                          "bg-muted",
                         )}
                         onClick={() => toggleSettings(tier.id)}
                         aria-label="Ticket settings"
@@ -439,27 +455,51 @@ export function PricingModal({
           </div>
 
           {/* Add row */}
-          <div className="border-t px-3 py-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={addTier}
-              disabled={!canAddTier}
-              className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              title={!canAddTier ? "Maximum 10 tiers" : undefined}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Ticket Type
-            </Button>
+          <div className="flex items-center justify-between border-t px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={addTier}
+                disabled={!canAddTier}
+                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                title={!canAddTier ? "Maximum 10 tiers" : undefined}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Ticket Type
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addFreeTier}
+                disabled={!canAddTier}
+                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Free
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addMembersOnlyTier}
+                disabled={!canAddTier}
+                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Members Only
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between border-t pt-4">
-        <Button type="button" variant="ghost" size="sm" onClick={handleSetFree}>
-          Set as Free
-        </Button>
         <div className="flex gap-2">
           <Button
             type="button"
