@@ -109,7 +109,9 @@ export function EditorToolbox({
 
   // Slug State
   const [urlSlug, setUrlSlug] = useState(initialUrlSlug || "");
-  const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [slugStatus, setSlugStatus] = useState<
+    "idle" | "checking" | "available" | "taken"
+  >("idle");
   const [savingSlug, setSavingSlug] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -145,10 +147,12 @@ export function EditorToolbox({
 
     typingTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/events/${eventId}/slug?slug=${encodeURIComponent(formatted)}`);
+        const res = await fetch(
+          `/api/events/${eventId}/slug?slug=${encodeURIComponent(formatted)}`,
+        );
         if (!res.ok) throw new Error("Failed to check");
         const json = await res.json();
-        
+
         if (json.available) {
           setSlugStatus("available");
         } else {
@@ -179,7 +183,9 @@ export function EditorToolbox({
       // Optional: trigger onFlush to keep UI synced, but since eventId is standard, it's fine.
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "Failed to save URL slug");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save URL slug",
+      );
     } finally {
       setSavingSlug(false);
     }
@@ -402,40 +408,57 @@ export function EditorToolbox({
                     <Palette className="h-4 w-4 mr-2" /> Theme
                   </Button>
                 </div>
-              
-                  <div className="space-y-2 mt-4">
-                    <Label htmlFor="url-slug">Event Page URL</Label>
-                    <p className="text-[13px] text-muted-foreground">
-                      Customise the link to your event page.
-                    </p>
-                    <div className="flex w-full space-x-2 items-center">
-                      <div className="flex items-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors w-[100%]">
-                        <span className="text-muted-foreground mr-1">tix.connect3.app/event/</span>
-                        <input
-                          id="url-slug"
-                          type="text"
-                          placeholder={eventId || "my-awesome-event"}
-                          value={urlSlug}
-                          onChange={handleSlugChange}
-                          className="flex-1 bg-transparent py-1 shadow-none outline-none focus:outline-none focus:ring-0 min-w-[50px]"
-                        />
-                        <div className="w-4 h-4 ml-2 flex-shrink-0 flex items-center justify-center">
-                          {slugStatus === "checking" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-                          {slugStatus === "available" && <CheckCircle className="h-4 w-4 text-green-500" />}
-                          {slugStatus === "taken" && <XCircle className="h-4 w-4 text-red-500" />}
-                        </div>
+
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="url-slug">Event Page URL</Label>
+                  <p className="text-[13px] text-muted-foreground">
+                    Customise the link to your event page.
+                  </p>
+                  <div className="flex w-full space-x-2 items-center">
+                    <div className="flex items-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors w-full">
+                      <span className="text-muted-foreground mr-1">
+                        tix.connect3.app/event/
+                      </span>
+                      <input
+                        id="url-slug"
+                        type="text"
+                        placeholder={eventId || "my-awesome-event"}
+                        value={urlSlug}
+                        onChange={handleSlugChange}
+                        className="flex-1 bg-transparent py-1 shadow-none outline-none focus:outline-none focus:ring-0 min-w-12.5"
+                      />
+                      <div className="w-4 h-4 ml-2 shrink-0 flex items-center justify-center">
+                        {slugStatus === "checking" && (
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                        )}
+                        {slugStatus === "available" && (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        )}
+                        {slugStatus === "taken" && (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleSaveSlug}
-                        disabled={savingSlug || slugStatus === "taken" || slugStatus === "idle" || slugStatus === "checking"}
-                      >
-                        {savingSlug ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                      </Button>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleSaveSlug}
+                      disabled={
+                        savingSlug ||
+                        slugStatus === "taken" ||
+                        slugStatus === "idle" ||
+                        slugStatus === "checking"
+                      }
+                    >
+                      {savingSlug ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Save"
+                      )}
+                    </Button>
                   </div>
-</div>
+                </div>
+              </div>
               <Separator />
             </>
           )}
@@ -555,6 +578,3 @@ export function EditorToolbox({
     </>
   );
 }
-
-
-
